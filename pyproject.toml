@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kimi2api"
+version = "1.2.0"
+description = "Kimi AI Python OpenAI SDK Compatible API"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "fastapi>=0.115.0",
+    "httpx>=0.24.0",
+    "uvicorn>=0.30.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["kimi2api*"]
