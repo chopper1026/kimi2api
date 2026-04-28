@@ -193,13 +193,8 @@ def _format_messages(messages: List[Message]) -> str:
     return "\n".join([*(f"system:{line}" for line in system_lines), *body_lines]).strip()
 
 
-def _pack_grpc_web_frame(payload: Dict[str, Any]) -> bytes:
-    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    frame = bytearray(5 + len(data))
-    frame[0] = 0
-    frame[1:5] = len(data).to_bytes(4, "big")
-    frame[5:] = data
-    return bytes(frame)
+def _encode_connect_request(payload: Dict[str, Any]) -> bytes:
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
 class _ChatNamespace:
@@ -398,30 +393,34 @@ class Kimi2API:
         if not content:
             raise ValueError("messages content must not be empty")
 
-        return {
+        message: Dict[str, Any] = {
+            "role": "user",
+            "blocks": [
+                {
+                    "message_id": "",
+                    "text": {"content": content},
+                }
+            ],
             "scenario": KIMI_SCENARIO,
-            "chat_id": context.remote_chat_id or "",
+        }
+        if context.last_assistant_message_id:
+            message["parent_id"] = context.last_assistant_message_id
+
+        payload: Dict[str, Any] = {
+            "scenario": KIMI_SCENARIO,
             "tools": (
                 [{"type": "TOOL_TYPE_SEARCH", "search": {}}]
                 if enable_web_search
                 else []
             ),
-            "message": {
-                "parent_id": context.last_assistant_message_id or "",
-                "role": "user",
-                "blocks": [
-                    {
-                        "message_id": "",
-                        "text": {"content": content},
-                    }
-                ],
-                "scenario": KIMI_SCENARIO,
-            },
+            "message": message,
             "options": {
                 "thinking": enable_thinking,
-                "model": model,
             },
         }
+        if context.remote_chat_id:
+            payload["chat_id"] = context.remote_chat_id
+        return payload
 
     async def _raise_for_response(self, response: httpx.Response) -> None:
         if response.status_code == 200:
@@ -531,7 +530,7 @@ class Kimi2API:
         model: str,
         context: ConversationContext,
     ) -> ChatCompletion:
-        content = _pack_grpc_web_frame(request_body)
+        content = _encode_connect_request(request_body)
         reasoning_parts: List[str] = []
         content_parts: List[str] = []
         created = int(time.time())
@@ -606,7 +605,7 @@ class Kimi2API:
         model: str,
         context: ConversationContext,
     ) -> AsyncIterator[ChatCompletionChunk]:
-        content = _pack_grpc_web_frame(request_body)
+        content = _encode_connect_request(request_body)
 
         async def generator() -> AsyncIterator[ChatCompletionChunk]:
             created = int(time.time())

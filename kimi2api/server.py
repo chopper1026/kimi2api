@@ -18,6 +18,10 @@ DEFAULT_MODELS = [
     "kimi-k2.5-thinking",
     "kimi-k2.5-search",
     "kimi-k2.5-thinking-search",
+    "kimi-2.6-fast",
+    "kimi-2.6-thinking",
+    "kimi-2.6-search",
+    "kimi-2.6-thinking-search",
     "kimi-k2",
     "kimi-k2-thinking",
     "kimi-k2-search",
@@ -65,6 +69,11 @@ def _parse_model_alias(model: str) -> Dict[str, Any]:
         "kimi-search": (DEFAULT_BASE_MODEL, False, True),
         "kimi-thinking-search": (DEFAULT_BASE_MODEL, True, True),
         "kimi-search-thinking": (DEFAULT_BASE_MODEL, True, True),
+        "kimi-2.6-fast": ("kimi-2.6-fast", False, False),
+        "kimi-2.6-thinking": ("kimi-2.6-thinking", True, False),
+        "kimi-2.6-search": ("kimi-2.6-search", False, True),
+        "kimi-2.6-thinking-search": ("kimi-2.6-thinking-search", True, True),
+        "kimi-2.6-search-thinking": ("kimi-2.6-thinking-search", True, True),
     }
     if normalized_model in alias_map:
         base_model, enable_thinking, enable_web_search = alias_map[normalized_model]

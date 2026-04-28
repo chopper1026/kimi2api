@@ -84,6 +84,10 @@ print(resp.choices[0].message.content)
 ## 模型别名
 
 - `kimi-k2.5` / `kimi-k2`：默认不带思考、不带搜索
+- `kimi-2.6-fast`：兼容 Kimi 2.6 Fast
+- `kimi-2.6-thinking`：兼容 Kimi 2.6 思考
+- `kimi-2.6-search`：兼容 Kimi 2.6 搜索
+- `kimi-2.6-thinking-search` / `kimi-2.6-search-thinking`：同时开启思考和搜索
 - `kimi-k2.5-thinking` / `kimi-k2-thinking`：开启思考
 - `kimi-k2.5-search` / `kimi-k2-search`：开启搜索
 - `kimi-k2.5-thinking-search` / `kimi-k2.5-search-thinking`：同时开启思考和搜索
