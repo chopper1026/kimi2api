@@ -194,7 +194,12 @@ def _format_messages(messages: List[Message]) -> str:
 
 
 def _encode_connect_request(payload: Dict[str, Any]) -> bytes:
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    # Connect 协议帧: 1 字节 flag (0x00) + 4 字节大端长度 + JSON 载荷
+    header = bytearray(5)
+    header[0] = 0x00
+    header[1:5] = len(body).to_bytes(4, "big")
+    return bytes(header) + body
 
 
 class _ChatNamespace:
