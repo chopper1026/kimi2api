@@ -31,7 +31,7 @@ def _log(request_id: str, **overrides):
 
 def test_admin_logs_can_filter_and_open_detail(authenticated_admin_client, tmp_data_dir):
     _log("req-timeout")
-    _log("req-ok", status="success", status_code=200, error_message="", response_body="ok")
+    _log("req-ok", status="success", status_code=200, duration_ms=42.4, error_message="", response_body="ok")
 
     listing = authenticated_admin_client.get(
         "/admin/logs",
@@ -42,12 +42,24 @@ def test_admin_logs_can_filter_and_open_detail(authenticated_admin_client, tmp_d
     assert "req-timeout" in listing.text
     assert "req-ok" not in listing.text
     assert "upstream timeout" in listing.text
+    assert "2.3s" in listing.text
 
     detail = authenticated_admin_client.get("/admin/logs/req-timeout")
 
     assert detail.status_code == 200
     assert "请求详情" in detail.text
-    assert "curl" in detail.text
-    assert "Bearer &lt;API_KEY&gt;" in detail.text
+    assert "复制 curl" not in detail.text
+    assert "Bearer &lt;API_KEY&gt;" not in detail.text
+    assert "2345.6ms" not in detail.text
+    assert "2.3s" in detail.text
     assert "你是什么大模型" in detail.text
     assert "sk-secret" not in detail.text
+
+
+def test_admin_logs_use_ms_for_short_duration(authenticated_admin_client, tmp_data_dir):
+    _log("req-fast", status="success", status_code=200, duration_ms=42.4, error_message="")
+
+    listing = authenticated_admin_client.get("/admin/logs")
+
+    assert listing.status_code == 200
+    assert "42.4ms" in listing.text

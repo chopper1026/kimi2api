@@ -19,7 +19,7 @@
         </div>
         <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
             <div class="text-xs text-gray-500">耗时</div>
-            <div class="mt-1 text-lg font-mono text-gray-100">{{ log.duration_ms }}ms</div>
+            <div class="mt-1 text-lg font-mono text-gray-100">{{ log.duration_display }}</div>
         </div>
         <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
             <div class="text-xs text-gray-500">类型</div>
@@ -86,9 +86,4 @@
             </div>
         </section>
     </div>
-
-    <section class="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
-        <h3 class="font-medium">复制 curl</h3>
-        <pre class="overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-300 whitespace-pre-wrap">{{ log.curl }}</pre>
-    </section>
 </div>

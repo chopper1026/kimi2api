@@ -1,5 +1,4 @@
 import time
-import shlex
 import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -31,6 +30,17 @@ def fmt_duration(seconds: float) -> str:
         return f"{days}天 {hours}小时"
     minutes = int((seconds % 3600) // 60)
     return f"{hours}小时 {minutes}分钟"
+
+
+def fmt_request_duration(duration_ms: float) -> str:
+    if duration_ms < 1000:
+        return f"{duration_ms:.1f}ms"
+    seconds = duration_ms / 1000
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes = int(seconds // 60)
+    remaining_seconds = seconds % 60
+    return f"{minutes}m {remaining_seconds:.1f}s"
 
 
 def token_info() -> Dict[str, Any]:
@@ -135,6 +145,7 @@ def log_list(filters: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
             "status": log.status,
             "status_code": log.status_code,
             "duration_ms": log.duration_ms,
+            "duration_display": fmt_request_duration(log.duration_ms),
             "is_stream": log.is_stream,
             "error_message": log.error_message,
         })
@@ -161,24 +172,6 @@ def _request_url(base_url: str, log: RequestLog) -> str:
     return url
 
 
-def _curl_command(base_url: str, log: RequestLog) -> str:
-    url = _request_url(base_url, log)
-    lines = [
-        "curl",
-        "-X",
-        log.method or "GET",
-        shlex.quote(url),
-        "-H",
-        shlex.quote("Authorization: Bearer <API_KEY>"),
-    ]
-    content_type = log.request_headers.get("content-type")
-    if content_type:
-        lines.extend(["-H", shlex.quote(f"Content-Type: {content_type}")])
-    if log.request_body:
-        lines.extend(["--data-raw", shlex.quote(log.request_body)])
-    return " \\\n  ".join(lines)
-
-
 def log_detail(request_id: str, base_url: str) -> Optional[Dict[str, Any]]:
     log = get_log(request_id)
     if log is None:
@@ -198,6 +191,7 @@ def log_detail(request_id: str, base_url: str) -> Optional[Dict[str, Any]]:
         "status": log.status,
         "status_code": log.status_code,
         "duration_ms": log.duration_ms,
+        "duration_display": fmt_request_duration(log.duration_ms),
         "is_stream": log.is_stream,
         "error_message": log.error_message,
         "request_headers": _pretty_json(log.request_headers),
@@ -209,7 +203,6 @@ def log_detail(request_id: str, base_url: str) -> Optional[Dict[str, Any]]:
         "raw_stream_body": log.raw_stream_body,
         "parsed_response_text": log.parsed_response_text,
         "parsed_reasoning_content": log.parsed_reasoning_content,
-        "curl": _curl_command(base_url, log),
     }
 
 

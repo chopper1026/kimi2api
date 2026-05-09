@@ -71,7 +71,7 @@
                         {% endif %}
                         <span class="ml-2 text-gray-500">{{ "流式" if log.is_stream else "普通" }}</span>
                     </td>
-                    <td class="px-5 py-2.5 text-right text-gray-400 text-xs">{{ log.duration_ms }}ms</td>
+                    <td class="px-5 py-2.5 text-right text-gray-400 text-xs">{{ log.duration_display }}</td>
                     <td class="px-5 py-2.5 text-right text-xs">
                         <a href="/admin/logs/{{ log.request_id }}"
                            hx-get="/admin/logs/{{ log.request_id }}" hx-target="#content" hx-push-url="true"
