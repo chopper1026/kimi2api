@@ -36,6 +36,34 @@ class KimiClientTest(unittest.TestCase):
 
         self.assertEqual(asyncio.run(collect_events()), [{"done": {}}])
 
+    def test_unflagged_text_after_thinking_is_answer_content(self):
+        client = Kimi2API.__new__(Kimi2API)
+
+        delta = client._extract_delta(
+            {
+                "mask": "block.text",
+                "block": {"text": {"content": "这是最终回答"}},
+            },
+            current_phase="thinking",
+        )
+
+        self.assertEqual(delta["content"], "这是最终回答")
+        self.assertIsNone(delta["reasoning_content"])
+
+    def test_explicit_thinking_text_remains_reasoning_content(self):
+        client = Kimi2API.__new__(Kimi2API)
+
+        delta = client._extract_delta(
+            {
+                "mask": "block.text",
+                "block": {"text": {"content": "这里是推理", "flags": "thinking"}},
+            },
+            current_phase=None,
+        )
+
+        self.assertIsNone(delta["content"])
+        self.assertEqual(delta["reasoning_content"], "这里是推理")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -267,9 +267,7 @@ class Kimi2API:
         ):
             context.last_assistant_message_id = event["message"]["id"]
 
-    def _extract_phase(
-        self, event: Dict[str, Any], current_phase: Optional[str]
-    ) -> Optional[str]:
+    def _extract_explicit_phase(self, event: Dict[str, Any]) -> Optional[str]:
         from .protocol import THINKING_STAGE_NAME
 
         stages = event.get("block", {}).get("multiStage", {}).get("stages", [])
@@ -283,7 +281,12 @@ class Kimi2API:
             return "thinking"
         if flags == "answer":
             return "answer"
-        return current_phase
+        return None
+
+    def _extract_phase(
+        self, event: Dict[str, Any], current_phase: Optional[str]
+    ) -> Optional[str]:
+        return self._extract_explicit_phase(event) or current_phase
 
     def _extract_delta(
         self, event: Dict[str, Any], current_phase: Optional[str]
@@ -291,26 +294,29 @@ class Kimi2API:
         if event.get("heartbeat"):
             return {"phase": current_phase, "content": None, "reasoning_content": None}
 
-        phase = self._extract_phase(event, current_phase)
+        explicit_phase = self._extract_explicit_phase(event)
+        phase = explicit_phase or current_phase
         mask = event.get("mask", "")
 
         if "block.think" in mask:
             return {
-                "phase": phase,
+                "phase": phase or "thinking",
                 "content": None,
                 "reasoning_content": event.get("block", {}).get("think", {}).get("content"),
             }
 
         if "block.text" in mask:
             content = event.get("block", {}).get("text", {}).get("content")
-            if phase == "thinking":
+            if explicit_phase == "thinking":
                 return {"phase": phase, "content": None, "reasoning_content": content}
-            return {"phase": phase, "content": content, "reasoning_content": None}
+            return {"phase": phase if explicit_phase else "answer", "content": content, "reasoning_content": None}
 
         content = event.get("block", {}).get("text", {}).get("content")
-        if phase == "thinking":
+        if explicit_phase == "thinking":
             return {"phase": phase, "content": None, "reasoning_content": content}
-        return {"phase": phase, "content": content, "reasoning_content": None}
+        if content is not None:
+            return {"phase": phase if explicit_phase else "answer", "content": content, "reasoning_content": None}
+        return {"phase": phase, "content": None, "reasoning_content": None}
 
     async def _iter_grpc_events(
         self, response: httpx.Response, context: ConversationContext
