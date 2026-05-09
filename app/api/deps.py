@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
@@ -35,6 +36,8 @@ DEFAULT_MODELS = [
     "kimi-search",
     "kimi-thinking-search",
 ]
+
+logger = logging.getLogger("kimi2api.api")
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +289,18 @@ def _chat_to_responses_api_dict(response: Dict[str, Any]) -> Dict[str, Any]:
 # Streaming helpers
 # ---------------------------------------------------------------------------
 
+def _stream_error_chunk(message: str, error_type: str = "api_error") -> str:
+    payload = {
+        "error": {
+            "message": message,
+            "type": error_type,
+            "param": None,
+            "code": error_type,
+        }
+    }
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
 async def _stream_chat_chunks(
     stream: AsyncIterator[ChatCompletionChunk],
     response_model: str,
@@ -344,8 +359,9 @@ async def _create_streaming_chat_response(
     enable_thinking: bool,
     enable_web_search: bool,
 ) -> AsyncIterator[str]:
-    client = Kimi2API()
+    client: Optional[Kimi2API] = None
     try:
+        client = Kimi2API()
         stream = await client.chat.completions.create(
             model=model,
             messages=messages,
@@ -356,8 +372,17 @@ async def _create_streaming_chat_response(
         )
         async for chunk in _stream_chat_chunks(stream, response_model):
             yield chunk
+    except KimiAPIError as exc:
+        logger.warning("Streaming chat request failed: %s", exc)
+        yield _stream_error_chunk(str(exc))
+        yield "data: [DONE]\n\n"
+    except Exception:
+        logger.exception("Unexpected streaming chat request failure")
+        yield _stream_error_chunk("Streaming request failed")
+        yield "data: [DONE]\n\n"
     finally:
-        await client.close()
+        if client is not None:
+            await client.close()
 
 
 async def _create_streaming_responses_response(
@@ -369,8 +394,9 @@ async def _create_streaming_responses_response(
     enable_thinking: bool,
     enable_web_search: bool,
 ) -> AsyncIterator[str]:
-    client = Kimi2API()
+    client: Optional[Kimi2API] = None
     try:
+        client = Kimi2API()
         stream = await client.chat.completions.create(
             model=model,
             messages=messages,
@@ -381,8 +407,17 @@ async def _create_streaming_responses_response(
         )
         async for chunk in _stream_responses_chunks(stream):
             yield chunk
+    except KimiAPIError as exc:
+        logger.warning("Streaming responses request failed: %s", exc)
+        yield _stream_error_chunk(str(exc))
+        yield "data: [DONE]\n\n"
+    except Exception:
+        logger.exception("Unexpected streaming responses request failure")
+        yield _stream_error_chunk("Streaming request failed")
+        yield "data: [DONE]\n\n"
     finally:
-        await client.close()
+        if client is not None:
+            await client.close()
 
 
 # ---------------------------------------------------------------------------
