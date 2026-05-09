@@ -119,6 +119,15 @@ def init_token_manager(raw_token: str, base_url: Optional[str] = None) -> TokenM
     return _manager
 
 
+async def replace_token_manager(raw_token: str, base_url: Optional[str] = None) -> TokenManager:
+    global _manager
+    old_manager = _manager
+    _manager = TokenManager(raw_token, base_url)
+    if old_manager is not None:
+        await old_manager.close()
+    return _manager
+
+
 def get_token_manager() -> TokenManager:
     if _manager is None:
         raise RuntimeError(

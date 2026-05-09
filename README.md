@@ -2,7 +2,7 @@
 
 Kimi2API 是一个基于 Kimi Web 协议封装的 OpenAI 兼容 API 服务。它把 Kimi 的聊天能力转换成常见的 `/v1` 接口，方便 OpenAI SDK、Cherry Studio、LobeChat、NextChat、one-api 风格客户端接入。
 
-当前项目还内置了一个 `/admin` 管理面板，用于查看 token 状态、管理本服务对外暴露的 API Key、查看最近请求日志。
+当前项目还内置了一个 `/admin` 管理面板，用于管理 Kimi token、管理本服务对外暴露的 API Key、查看最近请求日志。
 
 > 说明：本项目不是 Moonshot 官方 API，也不是完整的 OpenAI API 实现。它只实现当前代码中列出的兼容接口。
 
@@ -12,7 +12,7 @@ Kimi2API 是一个基于 Kimi Web 协议封装的 OpenAI 兼容 API 服务。它
 - 支持流式和非流式输出
 - 支持 Kimi thinking / search 相关模型别名和请求参数
 - 支持 `conversation_id` / `session_id` 透传，用于延续会话
-- 支持 Kimi refresh token 自动换取 access token
+- 支持 Kimi token 面板配置、持久化和 refresh token 自动换取 access token
 - 内置 API Key 管理、请求统计和最近请求日志
 - 内置管理面板登录、CSRF 校验、登录失败限速、签名 Cookie 会话
 - 支持 Docker Compose 部署，数据通过 `data/` 持久化
@@ -58,9 +58,10 @@ cp .env.example .env
 编辑 `.env`，至少填写：
 
 ```env
-KIMI_TOKEN=your_kimi_token_here
 ADMIN_PASSWORD=your_admin_password
 ```
+
+`KIMI_TOKEN` 可以在 `.env` 中预置，也可以启动后登录 `/admin` 在 Token 管理中保存。
 
 本地 HTTP 访问管理面板时建议加上：
 
@@ -106,7 +107,7 @@ docker compose up -d
 
 | 变量 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `KIMI_TOKEN` | 是 | - | Kimi 认证 token，支持 refresh token 和 JWT access token |
+| `KIMI_TOKEN` | 否 | 空 | Kimi 认证 token，支持 refresh token 和 JWT access token；为空时可在管理面板保存 |
 | `KIMI_API_BASE` | 否 | `https://www.kimi.com` | Kimi Web 服务地址 |
 | `TIMEOUT` | 否 | `120` | 请求超时时间，单位秒 |
 | `MODEL` | 否 | `kimi-k2.5` | 默认模型；`.env.example` 中示例为 `kimi-k2.6` |
@@ -121,12 +122,12 @@ docker compose up -d
 
 ## Kimi Token
 
-`KIMI_TOKEN` 支持两类值：
+`KIMI_TOKEN` 支持两类值，也可以在管理面板的 Token 管理中保存：
 
 - Refresh token：推荐使用，服务会在需要时调用刷新接口换取 access token。
 - JWT access token：短期有效，过期后需要重新获取或改用 refresh token。
 
-可以在浏览器登录 Kimi 后，从 Cookie 或网络请求中提取对应 token。
+可以在浏览器登录 Kimi 后，从 Cookie 或网络请求中提取对应 token。管理面板保存的 token 会写入 `data/kimi_token.json`，重启后优先使用该文件中的值。
 
 ## 使用示例
 
@@ -245,7 +246,7 @@ curl http://127.0.0.1:8000/v1/responses \
 访问 `/admin` 后使用 `ADMIN_PASSWORD` 登录。面板包含：
 
 - 服务概览：运行时间、token 状态、Key 数量、请求统计
-- Token 管理：查看 token 类型、过期时间、手动刷新、验证 token
+- Token 管理：新增或替换 token、查看 token 类型、过期时间、手动刷新、验证 token
 - API Key 管理：创建、查看、删除本服务对外暴露的 Key
 - 请求日志：查看最近 200 条 `/v1/*` 请求记录
 
@@ -253,6 +254,12 @@ API Key 存储在：
 
 ```text
 data/api_keys.json
+```
+
+管理面板保存的 Kimi token 存储在：
+
+```text
+data/kimi_token.json
 ```
 
 会话签名密钥默认存储在：

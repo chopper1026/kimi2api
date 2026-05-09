@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 
@@ -11,11 +12,14 @@ from .kimi import KimiAPIError
 from .core.keys import get_key as _get_key, init_key_store
 from .core.logs import RequestLog, log_request
 from .core.auth import init_auth
+from .core.kimi_token_store import load_configured_kimi_token
 from .core.token_manager import init_token_manager
 
 from .api.deps import SERVER_NAME, _json_error
 from .api.routes import router as api_router
 from .dashboard.routes import create_dashboard_router
+
+logger = logging.getLogger("kimi2api.main")
 
 
 def create_app() -> FastAPI:
@@ -96,11 +100,12 @@ def main() -> None:
 
     Config.load()
 
-    raw_token = Config.KIMI_TOKEN
-    if not raw_token:
-        raise ValueError("KIMI_TOKEN environment variable is required")
+    raw_token = load_configured_kimi_token()
+    if raw_token:
+        init_token_manager(raw_token)
+    else:
+        logger.warning("Kimi token is not configured; set it in /admin/token")
 
-    init_token_manager(raw_token)
     init_key_store()
     init_auth()
 

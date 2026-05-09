@@ -104,7 +104,10 @@ class Kimi2API:
     ):
         del kwargs
 
-        self._token_manager = get_token_manager()
+        try:
+            self._token_manager = get_token_manager()
+        except RuntimeError as exc:
+            raise KimiAPIError("Kimi token is not configured") from exc
         self._base_url = (base_url or _Config.KIMI_API_BASE).rstrip("/")
         self._timeout = timeout or _Config.TIMEOUT
         self._max_retries = max_retries

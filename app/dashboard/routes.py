@@ -2,6 +2,7 @@ import json
 import os
 import time
 from datetime import datetime, timezone
+from html import escape
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Form, Request, Response
@@ -21,7 +22,8 @@ from ..core.auth import (
 )
 from ..core.keys import create_key, delete_key, get_key, list_keys, total_request_count
 from ..core.logs import get_recent_logs
-from ..core.token_manager import get_token_manager
+from ..core.kimi_token_store import save_kimi_token
+from ..core.token_manager import get_token_manager, replace_token_manager
 
 import jinja2
 import os as _os
@@ -75,7 +77,17 @@ def _render(request: Request, template_name: str, context: Dict[str, Any]) -> HT
 
 
 def _token_info() -> Dict[str, Any]:
-    mgr = get_token_manager()
+    try:
+        mgr = get_token_manager()
+    except RuntimeError:
+        return {
+            "token_type": "未配置",
+            "token_expires": "-",
+            "token_preview": "-",
+            "token_healthy": False,
+            "token_status": "未配置",
+        }
+
     state = mgr._state
     now = time.time()
 
@@ -251,7 +263,11 @@ def create_dashboard_router() -> APIRouter:
         if not verify_session(request):
             return RedirectResponse("/admin/login", status_code=302)
         content = _env.get_template("partials/token.html").render(
-            request=request, **_token_info(), subscription=None,
+            request=request,
+            **_token_info(),
+            subscription=None,
+            token_message=None,
+            token_error=None,
         )
         if _is_htmx(request):
             return HTMLResponse(content)
@@ -260,17 +276,53 @@ def create_dashboard_router() -> APIRouter:
             "tab_content": content,
         })
 
+    @router.post("/token", response_class=HTMLResponse)
+    async def token_save(request: Request, raw_token: str = Form(...)):
+        if not verify_session(request):
+            return HTMLResponse("", status_code=401)
+        if not verify_csrf(request):
+            return HTMLResponse("Forbidden", status_code=403)
+
+        token = raw_token.strip()
+        token_error = None
+        token_message = None
+        if not token:
+            token_error = "Token 不能为空"
+        else:
+            try:
+                save_kimi_token(token)
+                await replace_token_manager(token)
+                token_message = "Token 已保存"
+            except Exception as exc:
+                token_error = f"Token 保存失败: {exc}"
+
+        return _env.get_template("partials/token.html").render(
+            request=request,
+            **_token_info(),
+            subscription=None,
+            token_message=token_message,
+            token_error=token_error,
+        )
+
     @router.post("/token/refresh", response_class=HTMLResponse)
     async def token_refresh(request: Request):
         if not verify_session(request):
             return HTMLResponse("", status_code=401)
         if not verify_csrf(request):
             return HTMLResponse("Forbidden", status_code=403)
-        mgr = get_token_manager()
-        await mgr.invalidate_and_retry()
+        try:
+            mgr = get_token_manager()
+            await mgr.invalidate_and_retry()
+            token_error = None
+        except RuntimeError:
+            token_error = "请先保存 Token"
         ti = _token_info()
         return _env.get_template("partials/token.html").render(
-            request=request, **ti, subscription=None,
+            request=request,
+            **ti,
+            subscription=None,
+            token_message=None,
+            token_error=token_error,
         )
 
     @router.get("/token/validate", response_class=HTMLResponse)
@@ -278,16 +330,21 @@ def create_dashboard_router() -> APIRouter:
         if not verify_session(request):
             return HTMLResponse("", status_code=401)
         from ..kimi import Kimi2API
-        async with Kimi2API() as client:
-            valid = await client.validate_token()
-            sub = await client.get_subscription()
+        try:
+            async with Kimi2API() as client:
+                valid = await client.validate_token()
+                sub = await client.get_subscription()
+        except Exception as exc:
+            valid = False
+            sub = {"error": str(exc)}
         sub_str = json.dumps(sub, indent=2, ensure_ascii=False) if sub else "无法获取"
         status_text = "有效" if valid else "无效"
         color = "text-green-400" if valid else "text-red-400"
         return HTMLResponse(
             f'<div class="mt-3 p-4 bg-gray-900 border border-gray-800 rounded-xl">'
             f'<p class="font-medium {color}">Token 验证结果: {status_text}</p>'
-            f'<pre class="mt-2 text-xs text-gray-400 overflow-auto max-h-48">{sub_str}</pre>'
+            '<pre class="mt-2 text-xs text-gray-400 overflow-auto max-h-48">'
+            f"{escape(sub_str)}</pre>"
             f'</div>'
         )
 
