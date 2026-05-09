@@ -102,18 +102,6 @@ cp .env.example .env
 docker compose up -d
 ```
 
-部署时需要把这些配置和数据保留在容器外：
-
-- `.env`：运行配置，包含 `KIMI_TOKEN`、`ADMIN_PASSWORD`、可选的 `OPENAI_API_KEY` 等敏感配置。Compose 会通过 `env_file` 读取它，不要打进镜像，也不要提交到 git。
-- `./data`：运行数据目录，会挂载到容器内的 `/app/data`，至少会包含 `api_keys.json` 和 `.session_secret`。这个目录必须保留，否则重建容器后管理面板会话密钥和通过面板创建的 API Key 都会丢失。
-
-当前 `docker-compose.yml` 已经配置了下面这个挂载：
-
-```yaml
-volumes:
-  - ./data:/app/data
-```
-
 ## 配置项
 
 | 变量 | 必填 | 默认值 | 说明 |
@@ -306,9 +294,8 @@ git diff --check
 
 ## 安全提醒
 
-- 不要提交 `.env`、`data/`、`.playwright-mcp/` 等本地运行文件。
 - 生产环境请设置强 `ADMIN_PASSWORD` 和稳定的 `SESSION_SECRET`。
-- 公开部署时建议放在 HTTPS 后面，并保持 `SECURE_COOKIES=true`。
+- 公开部署时建议使用 HTTPS，并保持 `SECURE_COOKIES=true`。
 - 如果已经暴露过真实 Kimi token 或 API Key，请立即轮换。
 
 ## 致谢
