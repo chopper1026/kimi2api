@@ -6,19 +6,23 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from ..kimi import Kimi2API
 
-from .deps import (
-    DEFAULT_MODELS,
+from .auth import verify_api_key
+from .converters import (
     _chat_completion_to_dict,
     _chat_to_responses_api_dict,
+    _extract_conversation_id,
+    _normalize_messages,
+    _response_api_to_chat_request,
+)
+from .errors import _json_error
+from .models import (
+    DEFAULT_MODELS,
+    _extract_features,
+    _resolve_model,
+)
+from .streaming import (
     _create_streaming_chat_response,
     _create_streaming_responses_response,
-    _extract_conversation_id,
-    _extract_features,
-    _json_error,
-    _normalize_messages,
-    _resolve_model,
-    _response_api_to_chat_request,
-    verify_api_key,
 )
 
 router = APIRouter()

@@ -16,7 +16,8 @@ from .core.auth import init_auth
 from .core.kimi_token_store import load_configured_kimi_token
 from .core.token_manager import init_token_manager
 
-from .api.deps import SERVER_NAME, _json_error
+from .api.errors import _json_error
+from .api.models import SERVER_NAME
 from .api.routes import router as api_router
 from .dashboard.routes import create_dashboard_router
 
