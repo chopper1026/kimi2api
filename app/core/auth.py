@@ -89,11 +89,11 @@ def get_csrf_token(request: Request) -> Optional[str]:
     return None
 
 
-def verify_csrf(request: Request) -> bool:
+def verify_csrf(request: Request, provided_token: Optional[str] = None) -> bool:
     expected = get_csrf_token(request)
     if not expected:
         return False
-    provided = request.headers.get("x-csrf-token") or ""
+    provided = provided_token or request.headers.get("x-csrf-token") or ""
     if not provided:
         return False
     return hmac.compare_digest(expected, provided)

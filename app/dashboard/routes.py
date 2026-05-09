@@ -70,8 +70,8 @@ def create_dashboard_router() -> APIRouter:
         return resp
 
     @router.post("/logout", response_class=HTMLResponse)
-    async def logout(request: Request):
-        if not verify_csrf(request):
+    async def logout(request: Request, csrf_token: str = Form("")):
+        if not verify_csrf(request, csrf_token):
             return HTMLResponse("Forbidden", status_code=403)
         response = RedirectResponse("/admin/login", status_code=302)
         destroy_session(response)
