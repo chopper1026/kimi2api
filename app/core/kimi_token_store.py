@@ -1,10 +1,10 @@
-import json
 import logging
 import os
 import time
 from typing import Optional
 
 from ..config import Config
+from .storage import atomic_write_json, data_path, read_json
 
 logger = logging.getLogger("kimi2api.kimi_token_store")
 
@@ -12,11 +12,7 @@ TOKEN_FILE_NAME = "kimi_token.json"
 
 
 def _token_file() -> str:
-    return os.path.join(Config.DATA_DIR, TOKEN_FILE_NAME)
-
-
-def _ensure_data_dir() -> None:
-    os.makedirs(Config.DATA_DIR, exist_ok=True)
+    return data_path(TOKEN_FILE_NAME)
 
 
 def _normalize_token(raw_token: str) -> str:
@@ -29,8 +25,7 @@ def load_saved_kimi_token() -> Optional[str]:
         return None
 
     try:
-        with open(token_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        data = read_json(token_file)
     except Exception as exc:
         logger.warning("Failed to load Kimi token file: %s", exc)
         return None
@@ -57,18 +52,12 @@ def save_kimi_token(raw_token: str) -> None:
     if not token:
         raise ValueError("Kimi token must not be empty")
 
-    _ensure_data_dir()
     token_file = _token_file()
-    tmp = token_file + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(
-            {
-                "token": token,
-                "updated_at": time.time(),
-            },
-            f,
-            ensure_ascii=False,
-            indent=2,
-        )
-    os.replace(tmp, token_file)
-    os.chmod(token_file, 0o600)
+    atomic_write_json(
+        token_file,
+        {
+            "token": token,
+            "updated_at": time.time(),
+        },
+        mode=0o600,
+    )

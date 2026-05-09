@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import time
@@ -7,6 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import List, Optional
 
 from ..config import Config
+from .storage import atomic_write_json, data_path, ensure_data_dir, read_json
 
 logger = logging.getLogger("kimi2api.keys")
 
@@ -24,11 +24,7 @@ _key_store: OrderedDict[str, ApiKey] = OrderedDict()
 
 
 def _key_file() -> str:
-    return os.path.join(Config.DATA_DIR, "api_keys.json")
-
-
-def _ensure_data_dir() -> None:
-    os.makedirs(Config.DATA_DIR, exist_ok=True)
+    return data_path("api_keys.json")
 
 
 def _load_keys_from_file() -> None:
@@ -36,8 +32,7 @@ def _load_keys_from_file() -> None:
     if not os.path.exists(kf):
         return
     try:
-        with open(kf, "r", encoding="utf-8") as f:
-            items = json.load(f)
+        items = read_json(kf)
         for item in items:
             k = ApiKey(**item)
             _key_store[k.key] = k
@@ -47,17 +42,13 @@ def _load_keys_from_file() -> None:
 
 
 def _save_keys_to_file() -> None:
-    _ensure_data_dir()
     kf = _key_file()
     items = [asdict(k) for k in _key_store.values()]
-    tmp = kf + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(items, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, kf)
+    atomic_write_json(kf, items)
 
 
 def init_key_store() -> None:
-    _ensure_data_dir()
+    ensure_data_dir()
     env_key = Config.OPENAI_API_KEY
     if env_key:
         existing = _key_store.get(env_key)

@@ -8,6 +8,7 @@ from fastapi import Request, Response
 from itsdangerous import SignatureExpired, URLSafeTimedSerializer
 
 from ..config import Config
+from .storage import atomic_write_text, data_path, ensure_data_dir, read_text
 
 logger = logging.getLogger("kimi2api.auth")
 
@@ -25,19 +26,16 @@ def _get_or_create_session_secret() -> str:
     if Config.SESSION_SECRET:
         return Config.SESSION_SECRET
 
-    secret_file = os.path.join(Config.DATA_DIR, ".session_secret")
-    os.makedirs(Config.DATA_DIR, exist_ok=True)
+    secret_file = data_path(".session_secret")
+    ensure_data_dir()
 
     if os.path.exists(secret_file):
-        with open(secret_file, "r") as f:
-            secret = f.read().strip()
+        secret = read_text(secret_file).strip()
         if secret:
             return secret
 
     secret = os.urandom(32).hex()
-    with open(secret_file, "w") as f:
-        f.write(secret)
-    os.chmod(secret_file, 0o600)
+    atomic_write_text(secret_file, secret, mode=0o600)
     return secret
 
 
