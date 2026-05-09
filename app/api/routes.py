@@ -4,10 +4,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from ..config import Config
-from ..kimi import Kimi2API, KimiAPIError
-from ..core.keys import get_key as _get_key
-from ..core.logs import RequestLog, log_request
+from ..kimi import Kimi2API
 
 from .deps import (
     DEFAULT_MODELS,
@@ -95,6 +92,7 @@ async def create_chat_completion(request: Request) -> Any:
     if stream:
         return StreamingResponse(
             _create_streaming_chat_response(
+                request=request,
                 model=features["model"],
                 response_model=features["request_model"],
                 messages=messages,
@@ -201,6 +199,7 @@ async def create_response(request: Request) -> Any:
     if stream:
         return StreamingResponse(
             _create_streaming_responses_response(
+                request=request,
                 model=features["model"],
                 response_model=features["request_model"],
                 messages=messages,

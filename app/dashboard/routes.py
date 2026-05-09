@@ -150,6 +150,7 @@ def _log_list() -> List[Dict[str, Any]]:
             "status": log.status,
             "status_code": log.status_code,
             "duration_ms": log.duration_ms,
+            "is_stream": log.is_stream,
         })
     return result
 

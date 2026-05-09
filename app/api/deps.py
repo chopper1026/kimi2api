@@ -4,13 +4,11 @@ import uuid
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from fastapi import Depends, Header, HTTPException, Request, status
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 
 from ..config import Config
 from ..kimi import Kimi2API, KimiAPIError, ChatCompletion, ChatCompletionChunk
 from ..core.keys import validate_api_key as _validate_api_key
-from ..core.keys import get_key as _get_key
-from ..core.logs import RequestLog, log_request
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -301,6 +299,11 @@ def _stream_error_chunk(message: str, error_type: str = "api_error") -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+def _mark_stream_error(request: Optional[Request]) -> None:
+    if request is not None:
+        request.state.stream_error = True
+
+
 async def _stream_chat_chunks(
     stream: AsyncIterator[ChatCompletionChunk],
     response_model: str,
@@ -352,6 +355,7 @@ async def _stream_responses_chunks(
 
 async def _create_streaming_chat_response(
     *,
+    request: Optional[Request] = None,
     model: str,
     response_model: str,
     messages: List[Dict[str, Any]],
@@ -373,10 +377,12 @@ async def _create_streaming_chat_response(
         async for chunk in _stream_chat_chunks(stream, response_model):
             yield chunk
     except KimiAPIError as exc:
+        _mark_stream_error(request)
         logger.warning("Streaming chat request failed: %s", exc)
         yield _stream_error_chunk(str(exc))
         yield "data: [DONE]\n\n"
     except Exception:
+        _mark_stream_error(request)
         logger.exception("Unexpected streaming chat request failure")
         yield _stream_error_chunk("Streaming request failed")
         yield "data: [DONE]\n\n"
@@ -387,6 +393,7 @@ async def _create_streaming_chat_response(
 
 async def _create_streaming_responses_response(
     *,
+    request: Optional[Request] = None,
     model: str,
     response_model: str,
     messages: List[Dict[str, Any]],
@@ -408,10 +415,12 @@ async def _create_streaming_responses_response(
         async for chunk in _stream_responses_chunks(stream):
             yield chunk
     except KimiAPIError as exc:
+        _mark_stream_error(request)
         logger.warning("Streaming responses request failed: %s", exc)
         yield _stream_error_chunk(str(exc))
         yield "data: [DONE]\n\n"
     except Exception:
+        _mark_stream_error(request)
         logger.exception("Unexpected streaming responses request failure")
         yield _stream_error_chunk("Streaming request failed")
         yield "data: [DONE]\n\n"

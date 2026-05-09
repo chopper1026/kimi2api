@@ -10,6 +10,7 @@
                     <th class="px-5 py-3 text-left">时间</th>
                     <th class="px-5 py-3 text-left">Key</th>
                     <th class="px-5 py-3 text-left">模型</th>
+                    <th class="px-5 py-3 text-left">类型</th>
                     <th class="px-5 py-3 text-left">状态</th>
                     <th class="px-5 py-3 text-right">耗时</th>
                 </tr>
@@ -20,6 +21,7 @@
                     <td class="px-5 py-2.5 text-gray-400 text-xs font-mono whitespace-nowrap">{{ log.time_str }}</td>
                     <td class="px-5 py-2.5 text-gray-300 text-xs">{{ log.api_key_name }}</td>
                     <td class="px-5 py-2.5 text-xs font-mono">{{ log.model }}</td>
+                    <td class="px-5 py-2.5 text-gray-400 text-xs">{{ "流式" if log.is_stream else "普通" }}</td>
                     <td class="px-5 py-2.5 text-xs">
                         {% if log.status == 'success' %}
                         <span class="text-green-400">{{ log.status_code }}</span>
@@ -31,7 +33,7 @@
                 </tr>
             {% endfor %}
             {% if not logs %}
-                <tr><td colspan="5" class="px-5 py-8 text-center text-gray-500">暂无请求记录</td></tr>
+                <tr><td colspan="6" class="px-5 py-8 text-center text-gray-500">暂无请求记录</td></tr>
             {% endif %}
             </tbody>
         </table>

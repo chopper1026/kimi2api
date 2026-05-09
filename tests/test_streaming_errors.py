@@ -2,13 +2,14 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from app.core import keys, token_manager
+from app.core import keys, logs as request_logs, token_manager
 from app.main import create_app
 
 
 class StreamingErrorTest(unittest.TestCase):
     def setUp(self):
         keys._key_store.clear()
+        request_logs._logs.clear()
         keys._key_store["sk-test"] = keys.ApiKey(
             key="sk-test",
             name="Test key",
@@ -21,6 +22,7 @@ class StreamingErrorTest(unittest.TestCase):
     def tearDown(self):
         token_manager._manager = self.previous_manager
         keys._key_store.clear()
+        request_logs._logs.clear()
 
     def test_streaming_chat_reports_missing_kimi_token_as_sse_error(self):
         with self.assertLogs("kimi2api.api", level="WARNING") as logs:
@@ -42,6 +44,11 @@ class StreamingErrorTest(unittest.TestCase):
         self.assertIn("data: [DONE]", body)
         self.assertIn("Streaming chat request failed", "\n".join(logs.output))
 
+        recent_logs = request_logs.get_recent_logs()
+        self.assertEqual(len(recent_logs), 1)
+        self.assertEqual(recent_logs[0].status, "error")
+        self.assertTrue(recent_logs[0].is_stream)
+
     def test_streaming_responses_reports_missing_kimi_token_as_sse_error(self):
         with self.assertLogs("kimi2api.api", level="WARNING") as logs:
             with self.client.stream(
@@ -61,6 +68,11 @@ class StreamingErrorTest(unittest.TestCase):
         self.assertIn("Kimi token is not configured", body)
         self.assertIn("data: [DONE]", body)
         self.assertIn("Streaming responses request failed", "\n".join(logs.output))
+
+        recent_logs = request_logs.get_recent_logs()
+        self.assertEqual(len(recent_logs), 1)
+        self.assertEqual(recent_logs[0].status, "error")
+        self.assertTrue(recent_logs[0].is_stream)
 
 
 if __name__ == "__main__":

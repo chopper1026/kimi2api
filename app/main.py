@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from typing import Any, AsyncIterator
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, status
@@ -20,6 +21,71 @@ from .api.routes import router as api_router
 from .dashboard.routes import create_dashboard_router
 
 logger = logging.getLogger("kimi2api.main")
+
+
+def _request_api_key_name(request: Request) -> str:
+    auth = request.headers.get("authorization", "")
+    if not auth.startswith("Bearer "):
+        return "anonymous"
+
+    api_key = _get_key(auth[7:].strip())
+    if api_key:
+        return api_key.name
+    return "anonymous"
+
+
+def _is_event_stream_response(response: Any) -> bool:
+    content_type = response.headers.get("content-type", "").lower()
+    return content_type.startswith("text/event-stream")
+
+
+def _log_v1_request(
+    *,
+    request: Request,
+    response: Any,
+    start: float,
+    is_stream: bool,
+) -> None:
+    duration_ms = (time.time() - start) * 1000
+    status = "success" if response.status_code < 400 else "error"
+    if getattr(request.state, "stream_error", False):
+        status = "error"
+
+    log_request(RequestLog(
+        timestamp=start,
+        api_key_name=_request_api_key_name(request),
+        model=getattr(request.state, "request_model", "unknown"),
+        status=status,
+        status_code=response.status_code,
+        duration_ms=round(duration_ms, 1),
+        is_stream=is_stream,
+    ))
+
+
+def _wrap_streaming_log(
+    *,
+    request: Request,
+    response: Any,
+    start: float,
+) -> None:
+    original_iterator = response.body_iterator
+
+    async def logging_iterator() -> AsyncIterator[Any]:
+        try:
+            async for chunk in original_iterator:
+                yield chunk
+        except BaseException:
+            request.state.stream_error = True
+            raise
+        finally:
+            _log_v1_request(
+                request=request,
+                response=response,
+                start=start,
+                is_stream=True,
+            )
+
+    response.body_iterator = logging_iterator()
 
 
 def create_app() -> FastAPI:
@@ -50,24 +116,19 @@ def create_app() -> FastAPI:
 
         start = time.time()
         request.state.request_model = "unknown"
+        request.state.stream_error = False
         response = await call_next(request)
-        duration_ms = (time.time() - start) * 1000
 
-        auth = request.headers.get("authorization", "")
-        key_name = "anonymous"
-        if auth.startswith("Bearer "):
-            k = _get_key(auth[7:].strip())
-            if k:
-                key_name = k.name
+        if _is_event_stream_response(response):
+            _wrap_streaming_log(request=request, response=response, start=start)
+            return response
 
-        log_request(RequestLog(
-            timestamp=start,
-            api_key_name=key_name,
-            model=getattr(request.state, "request_model", "unknown"),
-            status="success" if response.status_code < 400 else "error",
-            status_code=response.status_code,
-            duration_ms=round(duration_ms, 1),
-        ))
+        _log_v1_request(
+            request=request,
+            response=response,
+            start=start,
+            is_stream=False,
+        )
         return response
 
     # ---- Admin no-cache middleware ----

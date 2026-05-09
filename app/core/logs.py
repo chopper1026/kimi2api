@@ -16,6 +16,7 @@ class RequestLog:
     status: str
     status_code: int
     duration_ms: float
+    is_stream: bool = False
 
 
 def log_request(entry: RequestLog) -> None:
