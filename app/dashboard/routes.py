@@ -268,6 +268,7 @@ def create_dashboard_router() -> APIRouter:
             subscription=None,
             token_message=None,
             token_error=None,
+            show_token_editor=False,
         )
         if _is_htmx(request):
             return HTMLResponse(content)
@@ -275,6 +276,18 @@ def create_dashboard_router() -> APIRouter:
             "active_tab": "token",
             "tab_content": content,
         })
+
+    @router.get("/token/edit", response_class=HTMLResponse)
+    async def token_edit(request: Request):
+        if not verify_session(request):
+            return HTMLResponse("", status_code=401)
+        return _env.get_template("partials/token_editor.html").render(request=request)
+
+    @router.get("/token/editor-empty", response_class=HTMLResponse)
+    async def token_editor_empty(request: Request):
+        if not verify_session(request):
+            return HTMLResponse("", status_code=401)
+        return HTMLResponse("")
 
     @router.post("/token", response_class=HTMLResponse)
     async def token_save(request: Request, raw_token: str = Form(...)):
@@ -302,6 +315,7 @@ def create_dashboard_router() -> APIRouter:
             subscription=None,
             token_message=token_message,
             token_error=token_error,
+            show_token_editor=bool(token_error),
         )
 
     @router.post("/token/refresh", response_class=HTMLResponse)
@@ -323,6 +337,7 @@ def create_dashboard_router() -> APIRouter:
             subscription=None,
             token_message=None,
             token_error=token_error,
+            show_token_editor=False,
         )
 
     @router.get("/token/validate", response_class=HTMLResponse)

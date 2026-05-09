@@ -1,0 +1,24 @@
+<div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+    <h2 class="text-lg font-semibold mb-4">Token 配置</h2>
+    <form hx-post="/admin/token" hx-target="#token-panel" hx-swap="outerHTML" class="space-y-4">
+        <div>
+            <label for="raw-token" class="block text-sm text-gray-400 mb-2">Kimi Token</label>
+            <textarea id="raw-token" name="raw_token" rows="4" required
+                      placeholder="粘贴 refresh token 或 JWT access token"
+                      class="w-full px-4 py-3 bg-gray-950 border border-gray-800 rounded-lg text-sm font-mono text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"></textarea>
+        </div>
+        <div class="flex gap-3">
+            <button type="submit"
+                    class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded-lg text-sm font-medium transition-colors">
+                保存 Token
+            </button>
+            <button type="button"
+                    hx-get="/admin/token/editor-empty"
+                    hx-target="#token-editor"
+                    hx-swap="innerHTML"
+                    class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors border border-gray-700">
+                取消
+            </button>
+        </div>
+    </form>
+</div>

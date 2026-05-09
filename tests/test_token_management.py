@@ -90,6 +90,7 @@ class TokenManagementTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("new-****", response.text)
+        self.assertNotIn("new-refresh-token", response.text)
         self.assertIsNotNone(token_manager._manager)
         self.assertEqual(token_manager._manager._state.refresh_token, "new-refresh-token")
 
@@ -97,6 +98,27 @@ class TokenManagementTest(unittest.TestCase):
         with open(token_file, "r", encoding="utf-8") as f:
             data = json.load(f)
         self.assertEqual(data["token"], "new-refresh-token")
+
+    def test_token_editor_is_hidden_until_requested(self):
+        client = TestClient(create_app())
+
+        login = client.post(
+            "/admin/login",
+            data={"password": "admin-password"},
+            follow_redirects=False,
+        )
+        self.assertEqual(login.status_code, 302)
+
+        panel = client.get("/admin/token")
+        self.assertEqual(panel.status_code, 200)
+        self.assertNotIn('name="raw_token"', panel.text)
+        self.assertIn("配置 Token", panel.text)
+
+        editor = client.get("/admin/token/edit")
+
+        self.assertEqual(editor.status_code, 200)
+        self.assertIn('name="raw_token"', editor.text)
+        self.assertIn("保存 Token", editor.text)
 
 
 if __name__ == "__main__":
