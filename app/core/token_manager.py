@@ -7,7 +7,7 @@ from typing import Optional
 import httpx
 
 from ..config import Config
-from ..kimi.protocol import FAKE_HEADERS, KIMI_API_BASE, detect_token_type, parse_jwt
+from ..kimi.protocol import FAKE_HEADERS, detect_token_type, parse_jwt
 
 logger = logging.getLogger("kimi2api.token_manager")
 
@@ -24,8 +24,8 @@ class TokenState:
 
 
 class TokenManager:
-    def __init__(self, raw_token: str, base_url: str = KIMI_API_BASE):
-        self._base_url = base_url.rstrip("/")
+    def __init__(self, raw_token: str, base_url: Optional[str] = None):
+        self._base_url = (base_url or Config.KIMI_API_BASE).rstrip("/")
         self._lock = asyncio.Lock()
         self._http = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
         self._state = self._initialize(raw_token)
@@ -69,6 +69,7 @@ class TokenManager:
         try:
             headers = {
                 **FAKE_HEADERS,
+                "Origin": self._base_url,
                 "Authorization": f"Bearer {refresh_token}",
             }
             response = await self._http.get(
@@ -112,7 +113,7 @@ class TokenManager:
 _manager: Optional[TokenManager] = None
 
 
-def init_token_manager(raw_token: str, base_url: str = KIMI_API_BASE) -> TokenManager:
+def init_token_manager(raw_token: str, base_url: Optional[str] = None) -> TokenManager:
     global _manager
     _manager = TokenManager(raw_token, base_url)
     return _manager

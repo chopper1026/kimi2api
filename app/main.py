@@ -19,7 +19,13 @@ from .dashboard.routes import create_dashboard_router
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=SERVER_NAME, version="1.2.0")
+    app = FastAPI(
+        title=SERVER_NAME,
+        version="1.2.0",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
 
     # ---- Static files ----
     _static_dir = os.path.join(os.path.dirname(__file__), "static")

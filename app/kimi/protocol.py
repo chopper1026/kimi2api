@@ -6,9 +6,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from ..config import Config
-
-KIMI_API_BASE = Config.KIMI_API_BASE
 KIMI_CHAT_PATH = "/apiv2/kimi.gateway.chat.v1.ChatService/Chat"
 KIMI_SUBSCRIPTION_PATH = (
     "/apiv2/kimi.gateway.order.v1.SubscriptionService/GetSubscription"
@@ -22,7 +19,7 @@ FAKE_HEADERS = {
     "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
     "Cache-Control": "no-cache",
     "Pragma": "no-cache",
-    "Origin": KIMI_API_BASE,
+    "Origin": "https://www.kimi.com",
     "R-Timezone": "Asia/Shanghai",
     "Sec-Ch-Ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
     "Sec-Ch-Ua-Mobile": "?0",

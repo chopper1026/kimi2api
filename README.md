@@ -15,7 +15,7 @@ Kimi2API 是一个基于 Kimi Web 协议封装的 OpenAI 兼容 API 服务。它
 - 支持 Kimi refresh token 自动换取 access token
 - 内置 API Key 管理、请求统计和最近请求日志
 - 内置管理面板登录、CSRF 校验、登录失败限速、签名 Cookie 会话
-- 支持 Docker Compose 部署，数据通过 `data/` 或 Docker volume 持久化
+- 支持 Docker Compose 部署，数据通过 `data/` 持久化
 
 ## 接口
 
@@ -297,6 +297,10 @@ git diff --check
 - 生产环境请设置强 `ADMIN_PASSWORD` 和稳定的 `SESSION_SECRET`。
 - 公开部署时建议使用 HTTPS，并保持 `SECURE_COOKIES=true`。
 - 如果已经暴露过真实 Kimi token 或 API Key，请立即轮换。
+
+## 许可证
+
+本项目使用 MIT License，详见 [LICENSE](LICENSE)。
 
 ## 致谢
 

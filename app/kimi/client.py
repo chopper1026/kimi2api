@@ -8,7 +8,6 @@ import httpx
 from ..config import Config as _Config
 from ..core.token_manager import get_token_manager
 from .protocol import (
-    KIMI_API_BASE,
     KIMI_CHAT_PATH,
     KIMI_RESEARCH_USAGE_PATH,
     KIMI_SCENARIO,
@@ -106,7 +105,7 @@ class Kimi2API:
         del kwargs
 
         self._token_manager = get_token_manager()
-        self._base_url = (base_url or KIMI_API_BASE).rstrip("/")
+        self._base_url = (base_url or _Config.KIMI_API_BASE).rstrip("/")
         self._timeout = timeout or _Config.TIMEOUT
         self._max_retries = max_retries
         self._device_id = generate_device_id()
