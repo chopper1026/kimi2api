@@ -1,33 +1,17 @@
 import asyncio
 from unittest.mock import patch
 
-import pytest
-from fastapi.testclient import TestClient
-
-from app.core import keys, logs
-from app.main import create_app
+from app.core import logs
 
 
-@pytest.fixture
-def client():
-    keys._key_store.clear()
-    logs._logs.clear()
-    keys._key_store["sk-test"] = keys.ApiKey(
-        key="sk-test",
-        name="Test key",
-        created_at=0.0,
-    )
-    try:
-        yield TestClient(create_app())
-    finally:
-        keys._key_store.clear()
-        logs._logs.clear()
-
-
-def test_non_streaming_request_is_logged_immediately(client):
-    response = client.get(
+def test_non_streaming_request_is_logged_immediately(
+    api_client,
+    configured_api_key,
+    reset_logs,
+):
+    response = api_client.get(
         "/v1/models",
-        headers={"Authorization": "Bearer sk-test"},
+        headers={"Authorization": f"Bearer {configured_api_key.key}"},
     )
 
     assert response.status_code == 200
@@ -38,17 +22,21 @@ def test_non_streaming_request_is_logged_immediately(client):
     assert recent_logs[0].is_stream is False
 
 
-def test_streaming_request_duration_includes_body_iteration(client):
+def test_streaming_request_duration_includes_body_iteration(
+    api_client,
+    configured_api_key,
+    reset_logs,
+):
     async def slow_stream(**_kwargs):
         await asyncio.sleep(0.05)
         yield 'data: {"choices": []}\n\n'
         yield "data: [DONE]\n\n"
 
     with patch("app.api.routes._create_streaming_chat_response", slow_stream):
-        with client.stream(
+        with api_client.stream(
             "POST",
             "/v1/chat/completions",
-            headers={"Authorization": "Bearer sk-test"},
+            headers={"Authorization": f"Bearer {configured_api_key.key}"},
             json={
                 "model": "kimi-2.6-thinking",
                 "stream": True,

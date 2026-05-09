@@ -1,79 +1,69 @@
-import unittest
+import logging
 
-from fastapi.testclient import TestClient
-
-from app.core import keys, logs as request_logs, token_manager
-from app.main import create_app
+from app.core import logs as request_logs
 
 
-class StreamingErrorTest(unittest.TestCase):
-    def setUp(self):
-        keys._key_store.clear()
-        request_logs._logs.clear()
-        keys._key_store["sk-test"] = keys.ApiKey(
-            key="sk-test",
-            name="Test key",
-            created_at=0.0,
-        )
-        self.previous_manager = token_manager._manager
-        token_manager._manager = None
-        self.client = TestClient(create_app())
+def test_streaming_chat_reports_missing_kimi_token_as_sse_error(
+    api_client,
+    configured_api_key,
+    reset_logs,
+    token_manager_store,
+    caplog,
+):
+    caplog.set_level(logging.WARNING, logger="kimi2api.api")
 
-    def tearDown(self):
-        token_manager._manager = self.previous_manager
-        keys._key_store.clear()
-        request_logs._logs.clear()
+    with api_client.stream(
+        "POST",
+        "/v1/chat/completions",
+        headers={"Authorization": f"Bearer {configured_api_key.key}"},
+        json={
+            "model": "kimi-2.6-thinking",
+            "stream": True,
+            "messages": [{"role": "user", "content": "hi"}],
+        },
+    ) as response:
+        body = "".join(response.iter_text())
 
-    def test_streaming_chat_reports_missing_kimi_token_as_sse_error(self):
-        with self.assertLogs("kimi2api.api", level="WARNING") as logs:
-            with self.client.stream(
-                "POST",
-                "/v1/chat/completions",
-                headers={"Authorization": "Bearer sk-test"},
-                json={
-                    "model": "kimi-2.6-thinking",
-                    "stream": True,
-                    "messages": [{"role": "user", "content": "hi"}],
-                },
-            ) as response:
-                body = "".join(response.iter_text())
+    assert response.status_code == 200
+    assert '"error"' in body
+    assert "Kimi token is not configured" in body
+    assert "data: [DONE]" in body
+    assert "Streaming chat request failed" in caplog.text
 
-        self.assertEqual(response.status_code, 200)
-        self.assertIn('"error"', body)
-        self.assertIn("Kimi token is not configured", body)
-        self.assertIn("data: [DONE]", body)
-        self.assertIn("Streaming chat request failed", "\n".join(logs.output))
-
-        recent_logs = request_logs.get_recent_logs()
-        self.assertEqual(len(recent_logs), 1)
-        self.assertEqual(recent_logs[0].status, "error")
-        self.assertTrue(recent_logs[0].is_stream)
-
-    def test_streaming_responses_reports_missing_kimi_token_as_sse_error(self):
-        with self.assertLogs("kimi2api.api", level="WARNING") as logs:
-            with self.client.stream(
-                "POST",
-                "/v1/responses",
-                headers={"Authorization": "Bearer sk-test"},
-                json={
-                    "model": "kimi-2.6-thinking",
-                    "stream": True,
-                    "input": "hi",
-                },
-            ) as response:
-                body = "".join(response.iter_text())
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn('"error"', body)
-        self.assertIn("Kimi token is not configured", body)
-        self.assertIn("data: [DONE]", body)
-        self.assertIn("Streaming responses request failed", "\n".join(logs.output))
-
-        recent_logs = request_logs.get_recent_logs()
-        self.assertEqual(len(recent_logs), 1)
-        self.assertEqual(recent_logs[0].status, "error")
-        self.assertTrue(recent_logs[0].is_stream)
+    recent_logs = request_logs.get_recent_logs()
+    assert len(recent_logs) == 1
+    assert recent_logs[0].status == "error"
+    assert recent_logs[0].is_stream is True
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_streaming_responses_reports_missing_kimi_token_as_sse_error(
+    api_client,
+    configured_api_key,
+    reset_logs,
+    token_manager_store,
+    caplog,
+):
+    caplog.set_level(logging.WARNING, logger="kimi2api.api")
+
+    with api_client.stream(
+        "POST",
+        "/v1/responses",
+        headers={"Authorization": f"Bearer {configured_api_key.key}"},
+        json={
+            "model": "kimi-2.6-thinking",
+            "stream": True,
+            "input": "hi",
+        },
+    ) as response:
+        body = "".join(response.iter_text())
+
+    assert response.status_code == 200
+    assert '"error"' in body
+    assert "Kimi token is not configured" in body
+    assert "data: [DONE]" in body
+    assert "Streaming responses request failed" in caplog.text
+
+    recent_logs = request_logs.get_recent_logs()
+    assert len(recent_logs) == 1
+    assert recent_logs[0].status == "error"
+    assert recent_logs[0].is_stream is True
