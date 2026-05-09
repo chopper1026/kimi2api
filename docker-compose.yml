@@ -10,8 +10,5 @@ services:
       - HOST=0.0.0.0
       - PORT=8000
     volumes:
-      - kimi2api-data:/app/data
+      - ./data:/app/data
     restart: unless-stopped
-
-volumes:
-  kimi2api-data:
