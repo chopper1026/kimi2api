@@ -29,6 +29,13 @@ class PublicRoutesTest(unittest.TestCase):
 
                 self.assertEqual(response.status_code, 404)
 
+    def test_favicon_is_available(self):
+        response = self.client.get("/favicon.ico")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "image/svg+xml")
+        self.assertIn("<svg", response.text)
+
 
 if __name__ == "__main__":
     unittest.main()

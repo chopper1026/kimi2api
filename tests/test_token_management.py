@@ -111,6 +111,8 @@ class TokenManagementTest(unittest.TestCase):
 
         panel = client.get("/admin/token")
         self.assertEqual(panel.status_code, 200)
+        self.assertIn('rel="icon"', panel.text)
+        self.assertIn("/static/favicon.svg", panel.text)
         self.assertNotIn('name="raw_token"', panel.text)
         self.assertIn("配置 Token", panel.text)
 

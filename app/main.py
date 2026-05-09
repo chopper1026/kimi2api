@@ -4,7 +4,7 @@ import time
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import Config
@@ -34,6 +34,13 @@ def create_app() -> FastAPI:
     # ---- Static files ----
     _static_dir = os.path.join(os.path.dirname(__file__), "static")
     app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon() -> FileResponse:
+        return FileResponse(
+            os.path.join(_static_dir, "favicon.svg"),
+            media_type="image/svg+xml",
+        )
 
     # ---- Request logging middleware ----
     @app.middleware("http")
