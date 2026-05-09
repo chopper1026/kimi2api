@@ -15,11 +15,17 @@ def test_non_streaming_request_is_logged_immediately(
     )
 
     assert response.status_code == 200
+    assert response.headers["x-request-id"]
     recent_logs = logs.get_recent_logs()
     assert len(recent_logs) == 1
     assert recent_logs[0].api_key_name == "Test key"
     assert recent_logs[0].status == "success"
     assert recent_logs[0].is_stream is False
+    assert recent_logs[0].request_id == response.headers["x-request-id"]
+    assert recent_logs[0].method == "GET"
+    assert recent_logs[0].path == "/v1/models"
+    assert recent_logs[0].request_headers["authorization"] == "[redacted]"
+    assert '"object":"list"' in recent_logs[0].response_body
 
 
 def test_streaming_request_duration_includes_body_iteration(
@@ -52,3 +58,6 @@ def test_streaming_request_duration_includes_body_iteration(
     assert len(recent_logs) == 1
     assert recent_logs[0].is_stream is True
     assert recent_logs[0].duration_ms >= 50
+    detail = logs.get_log(recent_logs[0].request_id)
+    assert detail.raw_stream_body == body
+    assert detail.parsed_response_text == ""

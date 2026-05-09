@@ -1,11 +1,13 @@
 import logging
 import os
+import json
 import time
-from typing import Any, AsyncIterator
+import uuid
+from typing import Any, AsyncIterator, Dict, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .config import Config
@@ -40,26 +42,125 @@ def _is_event_stream_response(response: Any) -> bool:
     return content_type.startswith("text/event-stream")
 
 
+def _body_to_text(body: bytes) -> str:
+    return body.decode("utf-8", errors="replace") if body else ""
+
+
+def _query_params(request: Request) -> Dict[str, Any]:
+    result: Dict[str, Any] = {}
+    for key, value in request.query_params.multi_items():
+        existing = result.get(key)
+        if existing is None:
+            result[key] = value
+        elif isinstance(existing, list):
+            existing.append(value)
+        else:
+            result[key] = [existing, value]
+    return result
+
+
+def _request_with_body(request: Request, body: bytes) -> Request:
+    sent = False
+
+    async def receive() -> Dict[str, Any]:
+        nonlocal sent
+        if sent:
+            return {"type": "http.request", "body": b"", "more_body": False}
+        sent = True
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    return Request(request.scope, receive)
+
+
+def _chunk_to_bytes(chunk: Any) -> bytes:
+    if isinstance(chunk, bytes):
+        return chunk
+    return str(chunk).encode("utf-8")
+
+
+def _capture_limit() -> int:
+    return max(int(getattr(Config, "REQUEST_LOG_BODY_LIMIT_BYTES", 1048576)), 0) + 1
+
+
+def _append_capture(buffer: bytearray, chunk: Any) -> None:
+    limit = _capture_limit()
+    if len(buffer) >= limit:
+        return
+    data = _chunk_to_bytes(chunk)
+    buffer.extend(data[: limit - len(buffer)])
+
+
+def _extract_error_message(
+    *,
+    status_code: int,
+    body: bytes,
+    fallback: Optional[str] = None,
+) -> str:
+    if fallback:
+        return fallback
+    if status_code < 400:
+        return ""
+    text = _body_to_text(body).strip()
+    if not text:
+        return ""
+    try:
+        data = json.loads(text)
+    except Exception:
+        return text[:500]
+    if isinstance(data, dict):
+        error = data.get("error")
+        if isinstance(error, dict) and error.get("message"):
+            return str(error["message"])
+        detail = data.get("detail")
+        if isinstance(detail, dict) and detail.get("message"):
+            return str(detail["message"])
+        if isinstance(detail, str):
+            return detail
+    return text[:500]
+
+
 def _log_v1_request(
     *,
     request: Request,
-    response: Any,
     start: float,
+    status_code: int,
     is_stream: bool,
+    request_body: bytes,
+    response_headers: Dict[str, str],
+    response_body: bytes,
+    error_message: Optional[str] = None,
 ) -> None:
     duration_ms = (time.time() - start) * 1000
-    status = "success" if response.status_code < 400 else "error"
+    stream_error_message = getattr(request.state, "stream_error_message", "")
+    status = "success" if status_code < 400 else "error"
     if getattr(request.state, "stream_error", False):
         status = "error"
+    message = _extract_error_message(
+        status_code=status_code,
+        body=response_body,
+        fallback=error_message or stream_error_message,
+    )
 
     log_request(RequestLog(
         timestamp=start,
+        request_id=getattr(request.state, "request_id", ""),
+        method=request.method,
+        path=request.url.path,
+        query_params=_query_params(request),
+        client_ip=request.client.host if request.client else "",
+        user_agent=request.headers.get("user-agent", ""),
         api_key_name=_request_api_key_name(request),
         model=getattr(request.state, "request_model", "unknown"),
         status=status,
-        status_code=response.status_code,
+        status_code=status_code,
         duration_ms=round(duration_ms, 1),
         is_stream=is_stream,
+        request_headers=dict(request.headers),
+        request_body=_body_to_text(request_body),
+        response_headers=response_headers,
+        response_body=_body_to_text(response_body),
+        raw_stream_body=_body_to_text(response_body) if is_stream else "",
+        error_message=message,
     ))
 
 
@@ -68,22 +169,29 @@ def _wrap_streaming_log(
     request: Request,
     response: Any,
     start: float,
+    request_body: bytes,
 ) -> None:
     original_iterator = response.body_iterator
+    captured = bytearray()
 
     async def logging_iterator() -> AsyncIterator[Any]:
         try:
             async for chunk in original_iterator:
+                _append_capture(captured, chunk)
                 yield chunk
         except BaseException:
             request.state.stream_error = True
+            request.state.stream_error_message = "Streaming response failed"
             raise
         finally:
             _log_v1_request(
                 request=request,
-                response=response,
                 start=start,
+                status_code=response.status_code,
                 is_stream=True,
+                request_body=request_body,
+                response_headers=dict(response.headers),
+                response_body=bytes(captured),
             )
 
     response.body_iterator = logging_iterator()
@@ -116,21 +224,59 @@ def create_app() -> FastAPI:
             return await call_next(request)
 
         start = time.time()
+        request_id = uuid.uuid4().hex
+        request.state.request_id = request_id
         request.state.request_model = "unknown"
         request.state.stream_error = False
-        response = await call_next(request)
+        request.state.stream_error_message = ""
+        request_body = await request.body()
+        request = _request_with_body(request, request_body)
+
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            _log_v1_request(
+                request=request,
+                start=start,
+                status_code=500,
+                is_stream=False,
+                request_body=request_body,
+                response_headers={},
+                response_body=b"",
+                error_message=str(exc),
+            )
+            raise
+
+        response.headers["X-Request-ID"] = request_id
 
         if _is_event_stream_response(response):
-            _wrap_streaming_log(request=request, response=response, start=start)
+            _wrap_streaming_log(
+                request=request,
+                response=response,
+                start=start,
+                request_body=request_body,
+            )
             return response
+
+        response_body = bytearray()
+        async for chunk in response.body_iterator:
+            response_body.extend(_chunk_to_bytes(chunk))
 
         _log_v1_request(
             request=request,
-            response=response,
             start=start,
+            status_code=response.status_code,
             is_stream=False,
+            request_body=request_body,
+            response_headers=dict(response.headers),
+            response_body=bytes(response_body),
         )
-        return response
+        return Response(
+            content=bytes(response_body),
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            background=response.background,
+        )
 
     # ---- Admin no-cache middleware ----
     @app.middleware("http")

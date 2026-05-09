@@ -2,7 +2,7 @@
 
 Kimi2API 是一个基于 Kimi Web 协议封装的 OpenAI 兼容 API 服务。它把 Kimi 的聊天能力转换成常见的 `/v1` 接口，方便 OpenAI SDK、Cherry Studio、LobeChat、NextChat、one-api 风格客户端接入。
 
-当前项目还内置了一个 `/admin` 管理面板，用于管理 Kimi token、管理本服务对外暴露的 API Key、查看最近请求日志。
+当前项目还内置了一个 `/admin` 管理面板，用于管理 Kimi token、管理本服务对外暴露的 API Key、查看请求日志详情。
 
 > 说明：本项目不是 Moonshot 官方 API，也不是完整的 OpenAI API 实现。它只实现当前代码中列出的兼容接口。
 
@@ -13,7 +13,7 @@ Kimi2API 是一个基于 Kimi Web 协议封装的 OpenAI 兼容 API 服务。它
 - 支持 Kimi thinking / search 相关模型别名和请求参数
 - 支持 `conversation_id` / `session_id` 透传，用于延续会话
 - 支持 Kimi token 面板配置、持久化和 refresh token 自动换取 access token
-- 内置 API Key 管理、请求统计和最近请求日志
+- 内置 API Key 管理、请求统计和可筛选的请求日志详情
 - 内置管理面板登录、CSRF 校验、登录失败限速、签名 Cookie 会话
 - 支持 Docker Compose 部署，数据通过 `data/` 持久化
 
@@ -119,6 +119,8 @@ docker compose up -d
 | `PORT` | 否 | `8000` | 监听端口 |
 | `RELOAD` | 否 | `false` | 是否启用 uvicorn 热重载 |
 | `DATA_DIR` | 否 | `data` | 本地数据目录 |
+| `REQUEST_LOG_RETENTION` | 否 | `1000` | 请求日志保留最近多少条 |
+| `REQUEST_LOG_BODY_LIMIT_BYTES` | 否 | `1048576` | 单条请求/响应正文最大保存字节数，超过会截断 |
 
 ## Kimi Token
 
@@ -248,12 +250,18 @@ curl http://127.0.0.1:8000/v1/responses \
 - 服务概览：运行时间、token 状态、Key 数量、请求统计
 - Token 管理：新增或替换 token、查看 token 类型、过期时间、手动刷新、验证 token
 - API Key 管理：创建、查看、删除本服务对外暴露的 Key
-- 请求日志：查看最近 200 条 `/v1/*` 请求记录
+- 请求日志：筛选 `/v1/*` 请求记录，查看请求/响应正文、错误信息、流式原始 SSE 和复制 curl 模板
 
 API Key 存储在：
 
 ```text
 data/api_keys.json
+```
+
+请求日志存储在：
+
+```text
+data/request_logs.sqlite3
 ```
 
 管理面板保存的 Kimi token 存储在：

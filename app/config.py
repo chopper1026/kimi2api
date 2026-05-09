@@ -14,6 +14,8 @@ class Config:
     PORT: int = 8000
     RELOAD: bool = False
     DATA_DIR: str = "data"
+    REQUEST_LOG_RETENTION: int = 1000
+    REQUEST_LOG_BODY_LIMIT_BYTES: int = 1048576
 
     @classmethod
     def load(cls) -> None:
@@ -29,3 +31,5 @@ class Config:
         cls.PORT = int(os.getenv("PORT", "8000"))
         cls.RELOAD = os.getenv("RELOAD", "").lower() in {"1", "true", "yes", "on"}
         cls.DATA_DIR = os.getenv("DATA_DIR", "data")
+        cls.REQUEST_LOG_RETENTION = int(os.getenv("REQUEST_LOG_RETENTION", "1000"))
+        cls.REQUEST_LOG_BODY_LIMIT_BYTES = int(os.getenv("REQUEST_LOG_BODY_LIMIT_BYTES", "1048576"))

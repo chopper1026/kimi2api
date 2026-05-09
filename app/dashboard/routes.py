@@ -21,7 +21,7 @@ from ..core.kimi_token_store import save_kimi_token
 from ..core.token_manager import get_token_manager, replace_token_manager
 from .templates import render_html, render_page, render_template
 from . import view_models
-from .view_models import dashboard_stats, key_list, log_list, token_info
+from .view_models import dashboard_stats, key_list, log_detail, log_list, token_info
 
 
 def set_start_time(t: float) -> None:
@@ -287,9 +287,40 @@ def create_dashboard_router() -> APIRouter:
     async def logs_panel(request: Request):
         if not verify_session(request):
             return RedirectResponse("/admin/login", status_code=302)
+        filters = {
+            "q": request.query_params.get("q", ""),
+            "status": request.query_params.get("status", ""),
+            "model": request.query_params.get("model", ""),
+            "api_key_name": request.query_params.get("api_key_name", ""),
+            "path": request.query_params.get("path", ""),
+            "stream": request.query_params.get("stream", ""),
+        }
         content = render_template(
             "partials/logs.html",
-            request=request, logs=log_list(),
+            request=request, logs=log_list(filters), filters=filters,
+        )
+        if _is_htmx(request):
+            return HTMLResponse(content)
+        return render_page(
+            request,
+            "admin.html",
+            {
+                "active_tab": "logs",
+                "tab_content": content,
+            },
+            csrf_token=get_csrf_token(request) or "",
+        )
+
+    @router.get("/logs/{request_id}", response_class=HTMLResponse)
+    async def log_detail_panel(request: Request, request_id: str):
+        if not verify_session(request):
+            return RedirectResponse("/admin/login", status_code=302)
+        detail = log_detail(request_id, str(request.base_url))
+        if detail is None:
+            return HTMLResponse("Not found", status_code=404)
+        content = render_template(
+            "partials/log_detail.html",
+            request=request, log=detail,
         )
         if _is_htmx(request):
             return HTMLResponse(content)

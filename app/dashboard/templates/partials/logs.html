@@ -3,37 +3,84 @@
         <h2 class="text-lg font-semibold">请求日志</h2>
         <span class="text-gray-500 text-sm">最近 {{ logs | length }} 条</span>
     </div>
+
+    <form method="GET" action="/admin/logs"
+          hx-get="/admin/logs" hx-target="#content" hx-push-url="true"
+          class="grid grid-cols-1 md:grid-cols-6 gap-3 bg-gray-900 border border-gray-800 rounded-xl p-4">
+        <input name="q" value="{{ filters.q }}" placeholder="关键词 / Request ID / 错误"
+               class="md:col-span-2 px-3 py-2 bg-gray-950 border border-gray-800 rounded-lg text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500">
+        <select name="status" class="px-3 py-2 bg-gray-950 border border-gray-800 rounded-lg text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="">全部状态</option>
+            <option value="success" {% if filters.status == 'success' %}selected{% endif %}>成功</option>
+            <option value="error" {% if filters.status == 'error' %}selected{% endif %}>错误</option>
+        </select>
+        <select name="stream" class="px-3 py-2 bg-gray-950 border border-gray-800 rounded-lg text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="">全部类型</option>
+            <option value="true" {% if filters.stream == 'true' %}selected{% endif %}>流式</option>
+            <option value="false" {% if filters.stream == 'false' %}selected{% endif %}>普通</option>
+        </select>
+        <input name="model" value="{{ filters.model }}" placeholder="模型"
+               class="px-3 py-2 bg-gray-950 border border-gray-800 rounded-lg text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500">
+        <div class="flex gap-2">
+            <button type="submit" class="flex-1 px-3 py-2 bg-brand-600 hover:bg-brand-700 rounded-lg text-sm font-medium transition-colors">
+                筛选
+            </button>
+            <a href="/admin/logs" hx-get="/admin/logs" hx-target="#content" hx-push-url="true"
+               class="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-gray-300 transition-colors">
+                清空
+            </a>
+        </div>
+        <input name="api_key_name" value="{{ filters.api_key_name }}" placeholder="Key 名称"
+               class="px-3 py-2 bg-gray-950 border border-gray-800 rounded-lg text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500">
+        <input name="path" value="{{ filters.path }}" placeholder="路径"
+               class="md:col-span-5 px-3 py-2 bg-gray-950 border border-gray-800 rounded-lg text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500">
+    </form>
+
     <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
         <table class="w-full text-sm">
             <thead>
                 <tr class="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
                     <th class="px-5 py-3 text-left">时间</th>
+                    <th class="px-5 py-3 text-left">Request ID</th>
                     <th class="px-5 py-3 text-left">Key</th>
+                    <th class="px-5 py-3 text-left">请求</th>
                     <th class="px-5 py-3 text-left">模型</th>
-                    <th class="px-5 py-3 text-left">类型</th>
                     <th class="px-5 py-3 text-left">状态</th>
                     <th class="px-5 py-3 text-right">耗时</th>
+                    <th class="px-5 py-3 text-right">操作</th>
                 </tr>
             </thead>
             <tbody>
             {% for log in logs %}
                 <tr class="border-b border-gray-800/50 hover:bg-gray-800/50">
                     <td class="px-5 py-2.5 text-gray-400 text-xs font-mono whitespace-nowrap">{{ log.time_str }}</td>
+                    <td class="px-5 py-2.5 text-gray-300 text-xs font-mono" title="{{ log.request_id }}">{{ log.request_id }}</td>
                     <td class="px-5 py-2.5 text-gray-300 text-xs">{{ log.api_key_name }}</td>
+                    <td class="px-5 py-2.5 text-xs">
+                        <div class="font-mono text-gray-300">{{ log.method }} {{ log.path }}</div>
+                        {% if log.error_message %}
+                        <div class="mt-1 max-w-md truncate text-red-300">{{ log.error_message }}</div>
+                        {% endif %}
+                    </td>
                     <td class="px-5 py-2.5 text-xs font-mono">{{ log.model }}</td>
-                    <td class="px-5 py-2.5 text-gray-400 text-xs">{{ "流式" if log.is_stream else "普通" }}</td>
                     <td class="px-5 py-2.5 text-xs">
                         {% if log.status == 'success' %}
                         <span class="text-green-400">{{ log.status_code }}</span>
                         {% else %}
                         <span class="text-red-400">{{ log.status_code }}</span>
                         {% endif %}
+                        <span class="ml-2 text-gray-500">{{ "流式" if log.is_stream else "普通" }}</span>
                     </td>
                     <td class="px-5 py-2.5 text-right text-gray-400 text-xs">{{ log.duration_ms }}ms</td>
+                    <td class="px-5 py-2.5 text-right text-xs">
+                        <a href="/admin/logs/{{ log.request_id }}"
+                           hx-get="/admin/logs/{{ log.request_id }}" hx-target="#content" hx-push-url="true"
+                           class="text-brand-400 hover:text-brand-300">详情</a>
+                    </td>
                 </tr>
             {% endfor %}
             {% if not logs %}
-                <tr><td colspan="6" class="px-5 py-8 text-center text-gray-500">暂无请求记录</td></tr>
+                <tr><td colspan="8" class="px-5 py-8 text-center text-gray-500">暂无请求记录</td></tr>
             {% endif %}
             </tbody>
         </table>

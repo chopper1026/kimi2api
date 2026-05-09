@@ -24,6 +24,8 @@ CONFIG_FIELDS = (
     "PORT",
     "RELOAD",
     "DATA_DIR",
+    "REQUEST_LOG_RETENTION",
+    "REQUEST_LOG_BODY_LIMIT_BYTES",
 )
 
 
@@ -47,12 +49,12 @@ def reset_key_store():
 
 
 @pytest.fixture
-def reset_logs():
-    logs._logs.clear()
+def reset_logs(tmp_data_dir):
+    logs.clear_logs()
     try:
         yield
     finally:
-        logs._logs.clear()
+        logs.clear_logs()
 
 
 @dataclass
@@ -121,7 +123,7 @@ def configured_api_key(reset_key_store):
 
 
 @pytest.fixture
-def api_client():
+def api_client(tmp_data_dir):
     return TestClient(create_app())
 
 
