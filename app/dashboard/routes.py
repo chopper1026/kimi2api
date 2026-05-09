@@ -1,9 +1,5 @@
 import json
-import os
-import time
-from datetime import datetime, timezone
 from html import escape
-from typing import Any, Dict, List
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -20,137 +16,16 @@ from ..core.auth import (
     verify_password,
     verify_session,
 )
-from ..core.keys import create_key, delete_key, list_keys, total_request_count
-from ..core.logs import get_recent_logs
+from ..core.keys import create_key, delete_key
 from ..core.kimi_token_store import save_kimi_token
 from ..core.token_manager import get_token_manager, replace_token_manager
-
-import jinja2
-
-_START_TIME: float = 0.0
+from .templates import render_html, render_page, render_template
+from . import view_models
+from .view_models import dashboard_stats, key_list, log_list, token_info
 
 
 def set_start_time(t: float) -> None:
-    global _START_TIME
-    _START_TIME = t
-
-_TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
-_env = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(_TEMPLATES_DIR),
-    autoescape=True,
-)
-
-
-def _render_html(template_name: str, **context) -> HTMLResponse:
-    tmpl = _env.get_template(template_name)
-    html = tmpl.render(**context)
-    return HTMLResponse(html)
-
-
-def _fmt_time(ts: float) -> str:
-    if ts == 0:
-        return "-"
-    dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-    return dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-
-
-def _fmt_duration(seconds: float) -> str:
-    days = int(seconds // 86400)
-    hours = int((seconds % 86400) // 3600)
-    if days > 0:
-        return f"{days}天 {hours}小时"
-    minutes = int((seconds % 3600) // 60)
-    return f"{hours}小时 {minutes}分钟"
-
-
-def _render(request: Request, template_name: str, context: Dict[str, Any]) -> HTMLResponse:
-    ctx = {
-        "request": request,
-        "authenticated": True,
-        "version": "1.2.0",
-        "active_tab": context.get("active_tab", "dashboard"),
-        "csrf_token": get_csrf_token(request) or "",
-    }
-    ctx.update(context)
-    return _render_html(template_name, **ctx)
-
-
-def _token_info() -> Dict[str, Any]:
-    try:
-        mgr = get_token_manager()
-    except RuntimeError:
-        return {
-            "token_type": "未配置",
-            "token_expires": "-",
-            "token_preview": "-",
-            "token_healthy": False,
-            "token_status": "未配置",
-        }
-
-    state = mgr.get_state()
-    now = time.time()
-
-    if state.expires_at > 0:
-        remaining = state.expires_at - now
-        expires_str = _fmt_time(state.expires_at)
-        healthy = remaining > 300
-        if remaining > 0:
-            if remaining > 86400:
-                token_status = f"{int(remaining // 86400)}天后过期"
-            elif remaining > 3600:
-                token_status = f"{int(remaining // 3600)}小时后过期"
-            else:
-                token_status = f"{int(remaining // 60)}分钟后过期"
-        else:
-            token_status = "已过期"
-            healthy = False
-    else:
-        expires_str = "未知"
-        token_status = "有效"
-        healthy = True
-
-    token = state.access_token
-    if len(token) > 4:
-        preview = token[:4] + "****"
-    else:
-        preview = "****"
-
-    return {
-        "token_type": state.token_type.upper(),
-        "token_expires": expires_str,
-        "token_preview": preview,
-        "token_healthy": healthy,
-        "token_status": token_status,
-    }
-
-
-def _key_list() -> List[Dict[str, Any]]:
-    result = []
-    for k in list_keys():
-        result.append({
-            "key": k.key,
-            "key_preview": k.key[:10] + "..." + k.key[-4:],
-            "name": k.name,
-            "created_at_str": _fmt_time(k.created_at),
-            "last_used_str": _fmt_time(k.last_used) if k.last_used > 0 else "从未使用",
-            "request_count": k.request_count,
-        })
-    return result
-
-
-def _log_list() -> List[Dict[str, Any]]:
-    result = []
-    for log in get_recent_logs(200):
-        result.append({
-            "time_str": datetime.fromtimestamp(log.timestamp, tz=timezone.utc).strftime("%m-%d %H:%M:%S"),
-            "api_key_name": log.api_key_name,
-            "model": log.model,
-            "status": log.status,
-            "status_code": log.status_code,
-            "duration_ms": log.duration_ms,
-            "is_stream": log.is_stream,
-        })
-    return result
+    view_models.set_start_time(t)
 
 
 def _is_htmx(request: Request) -> bool:
@@ -167,7 +42,7 @@ def create_dashboard_router() -> APIRouter:
         if verify_session(request):
             return RedirectResponse("/admin/dashboard", status_code=302)
         ctx = {"request": request, "authenticated": False, "error": None}
-        return _render_html("admin.html", **ctx)
+        return render_html("admin.html", **ctx)
 
     @router.post("/login", response_class=HTMLResponse)
     async def login_submit(request: Request, password: str = Form(...)):
@@ -178,7 +53,7 @@ def create_dashboard_router() -> APIRouter:
 
         if not check_login_rate_limit(client_ip):
             ctx = {"request": request, "authenticated": False, "error": "登录尝试过多，请15分钟后再试"}
-            resp = _render_html("admin.html", **ctx)
+            resp = render_html("admin.html", **ctx)
             resp.status_code = 429
             return resp
 
@@ -190,7 +65,7 @@ def create_dashboard_router() -> APIRouter:
 
         record_failed_login(client_ip)
         ctx = {"request": request, "authenticated": False, "error": "密码错误"}
-        resp = _render_html("admin.html", **ctx)
+        resp = render_html("admin.html", **ctx)
         resp.status_code = 401
         return resp
 
@@ -213,57 +88,44 @@ def create_dashboard_router() -> APIRouter:
         if not verify_session(request):
             return RedirectResponse("/admin/login", status_code=302)
 
-        uptime = _fmt_duration(time.time() - _START_TIME)
-        ti = _token_info()
-        keys = list_keys()
-
-        tab_content = _env.get_template("partials/dashboard.html").render(
+        tab_content = render_template(
+            "partials/dashboard.html",
             request=request,
-            uptime=uptime,
-            token_healthy=ti["token_healthy"],
-            token_status=ti["token_status"],
-            token_type=ti["token_type"],
-            token_expires=ti["token_expires"],
-            key_count=len(keys),
-            total_requests=total_request_count(),
-            log_count=len(get_recent_logs(200)),
+            **dashboard_stats(),
         )
 
         if _is_htmx(request):
             return HTMLResponse(tab_content)
 
-        return _render(request, "admin.html", {
-            "active_tab": "dashboard",
-            "tab_content": tab_content,
-        })
+        return render_page(
+            request,
+            "admin.html",
+            {
+                "active_tab": "dashboard",
+                "tab_content": tab_content,
+            },
+            csrf_token=get_csrf_token(request) or "",
+        )
 
     @router.get("/api/stats", response_class=HTMLResponse)
     async def stats_partial(request: Request):
         if not verify_session(request):
             return HTMLResponse("", status_code=401)
 
-        uptime = _fmt_duration(time.time() - _START_TIME)
-        ti = _token_info()
-
-        return _env.get_template("partials/_stats_inner.html").render(
+        return render_template(
+            "partials/_stats_inner.html",
             request=request,
-            uptime=uptime,
-            token_healthy=ti["token_healthy"],
-            token_status=ti["token_status"],
-            token_type=ti["token_type"],
-            token_expires=ti["token_expires"],
-            key_count=len(list_keys()),
-            total_requests=total_request_count(),
-            log_count=len(get_recent_logs(200)),
+            **dashboard_stats(),
         )
 
     @router.get("/token", response_class=HTMLResponse)
     async def token_panel(request: Request):
         if not verify_session(request):
             return RedirectResponse("/admin/login", status_code=302)
-        content = _env.get_template("partials/token.html").render(
+        content = render_template(
+            "partials/token.html",
             request=request,
-            **_token_info(),
+            **token_info(),
             subscription=None,
             token_message=None,
             token_error=None,
@@ -271,16 +133,21 @@ def create_dashboard_router() -> APIRouter:
         )
         if _is_htmx(request):
             return HTMLResponse(content)
-        return _render(request, "admin.html", {
-            "active_tab": "token",
-            "tab_content": content,
-        })
+        return render_page(
+            request,
+            "admin.html",
+            {
+                "active_tab": "token",
+                "tab_content": content,
+            },
+            csrf_token=get_csrf_token(request) or "",
+        )
 
     @router.get("/token/edit", response_class=HTMLResponse)
     async def token_edit(request: Request):
         if not verify_session(request):
             return HTMLResponse("", status_code=401)
-        return _env.get_template("partials/token_editor.html").render(request=request)
+        return render_template("partials/token_editor.html", request=request)
 
     @router.get("/token/editor-empty", response_class=HTMLResponse)
     async def token_editor_empty(request: Request):
@@ -308,9 +175,10 @@ def create_dashboard_router() -> APIRouter:
             except Exception as exc:
                 token_error = f"Token 保存失败: {exc}"
 
-        return _env.get_template("partials/token.html").render(
+        return render_template(
+            "partials/token.html",
             request=request,
-            **_token_info(),
+            **token_info(),
             subscription=None,
             token_message=token_message,
             token_error=token_error,
@@ -329,8 +197,9 @@ def create_dashboard_router() -> APIRouter:
             token_error = None
         except RuntimeError:
             token_error = "请先保存 Token"
-        ti = _token_info()
-        return _env.get_template("partials/token.html").render(
+        ti = token_info()
+        return render_template(
+            "partials/token.html",
             request=request,
             **ti,
             subscription=None,
@@ -366,15 +235,21 @@ def create_dashboard_router() -> APIRouter:
     async def keys_panel(request: Request):
         if not verify_session(request):
             return RedirectResponse("/admin/login", status_code=302)
-        content = _env.get_template("partials/keys.html").render(
-            request=request, keys=_key_list(), new_key=None,
+        content = render_template(
+            "partials/keys.html",
+            request=request, keys=key_list(), new_key=None,
         )
         if _is_htmx(request):
             return HTMLResponse(content)
-        return _render(request, "admin.html", {
-            "active_tab": "keys",
-            "tab_content": content,
-        })
+        return render_page(
+            request,
+            "admin.html",
+            {
+                "active_tab": "keys",
+                "tab_content": content,
+            },
+            csrf_token=get_csrf_token(request) or "",
+        )
 
     @router.post("/keys", response_class=HTMLResponse)
     async def keys_create(request: Request):
@@ -391,8 +266,9 @@ def create_dashboard_router() -> APIRouter:
             except Exception:
                 pass
         new = create_key(name)
-        return _env.get_template("partials/keys.html").render(
-            request=request, keys=_key_list(), new_key=new.key,
+        return render_template(
+            "partials/keys.html",
+            request=request, keys=key_list(), new_key=new.key,
         )
 
     @router.delete("/keys/{key:path}", response_class=HTMLResponse)
@@ -402,22 +278,29 @@ def create_dashboard_router() -> APIRouter:
         if not verify_csrf(request):
             return HTMLResponse("Forbidden", status_code=403)
         delete_key(key)
-        return _env.get_template("partials/keys.html").render(
-            request=request, keys=_key_list(), new_key=None,
+        return render_template(
+            "partials/keys.html",
+            request=request, keys=key_list(), new_key=None,
         )
 
     @router.get("/logs", response_class=HTMLResponse)
     async def logs_panel(request: Request):
         if not verify_session(request):
             return RedirectResponse("/admin/login", status_code=302)
-        content = _env.get_template("partials/logs.html").render(
-            request=request, logs=_log_list(),
+        content = render_template(
+            "partials/logs.html",
+            request=request, logs=log_list(),
         )
         if _is_htmx(request):
             return HTMLResponse(content)
-        return _render(request, "admin.html", {
-            "active_tab": "logs",
-            "tab_content": content,
-        })
+        return render_page(
+            request,
+            "admin.html",
+            {
+                "active_tab": "logs",
+                "tab_content": content,
+            },
+            csrf_token=get_csrf_token(request) or "",
+        )
 
     return router
