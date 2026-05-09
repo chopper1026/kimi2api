@@ -1,0 +1,22 @@
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">服务状态</p>
+        <p class="text-2xl font-bold text-green-400">运行中</p>
+        <p class="text-gray-500 text-xs mt-1">已运行 {{ uptime }}</p>
+    </div>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">Token 状态</p>
+        <p class="text-2xl font-bold {{ 'text-green-400' if token_healthy else 'text-yellow-400' }}">{{ token_status }}</p>
+        <p class="text-gray-500 text-xs mt-1">{{ token_type }} · 过期: {{ token_expires }}</p>
+    </div>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">API Keys</p>
+        <p class="text-2xl font-bold text-blue-400">{{ key_count }}</p>
+        <p class="text-gray-500 text-xs mt-1">个活跃密钥</p>
+    </div>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">总请求数</p>
+        <p class="text-2xl font-bold text-purple-400">{{ total_requests }}</p>
+        <p class="text-gray-500 text-xs mt-1">日志记录: {{ log_count }} 条</p>
+    </div>
+</div>

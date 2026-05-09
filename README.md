@@ -1,72 +1,84 @@
 # Kimi2API
 
-一个基于 Kimi Web 协议实现的 OpenAI 兼容 API 服务，默认启动后可直接作为 `base_url` 给 OpenAI SDK、Cherry Studio、LobeChat、NextChat、one-api 风格客户端使用。
+基于 Kimi Web 协议的 OpenAI 兼容 API 服务，支持 Docker 一键部署。启动后可直接作为 `base_url` 给 OpenAI SDK、Cherry Studio、LobeChat、NextChat、one-api 等客户端使用。
 
-当前已实现的核心兼容接口：
+## 功能特性
 
-- `GET /v1/models`
-- `GET /v1/models/{model}`
-- `POST /v1/chat/completions`
-- `POST /v1/completions`
-- `POST /v1/responses`
-- `GET /healthz`
+### OpenAI 兼容接口
 
-同时保留底层 Python 客户端能力：
+- `GET /v1/models` — 模型列表
+- `GET /v1/models/{model}` — 模型详情
+- `POST /v1/chat/completions` — Chat Completions（流式/非流式）
+- `POST /v1/completions` — Completions（非流式）
+- `POST /v1/responses` — Responses API（流式/非流式）
+- `GET /healthz` — 健康检查
 
-- `await client.validate_token()`
-- `await client.get_subscription()`
-- `await client.get_research_usage()`
-- `await client.chat.completions.create(...)`
+### 管理控制台
 
-## 安装
+内置 Web 管理面板（`/admin`），支持：
 
-```bash
-uv sync
-```
+- **服务概览** — 运行时间、Token 状态、请求统计
+- **Token 管理** — 状态监控、手动刷新、有效性验证
+- **API Key 管理** — 多 Key 创建/吊销，支持独立命名
+- **请求日志** — 最近 1000 条请求记录，含模型、状态码、耗时
 
-或：
+### 安全机制
 
-```bash
-pip install -e .
-```
+- API 接口和面板鉴权独立：API 用 Bearer Token，面板用独立管理员密码
+- 登录限速：5 次失败/15 分钟/IP
+- 签名 Cookie 会话，支持 HTTPS 安全标记
+- 密码比较防时序攻击
 
-## 配置
+## 快速开始
 
-复制 `.env.example` 为 `.env`，至少配置：
+### 环境要求
+
+- Python 3.12+
+- [uv](https://github.com/astral-sh/uv)（推荐）或 pip
+
+### 配置
+
+复制 `.env.example` 为 `.env`：
 
 ```env
-KIMI_TOKEN=your_kimi_jwt_token_here
-OPENAI_API_KEY=sk-kimi2api
+# Kimi Token（必填，支持 JWT 和 Refresh Token）
+KIMI_TOKEN=your_token_here
+
+# 对外暴露的 API Key
+OPENAI_API_KEY=your_api_key_here
+
+# 管理面板密码（设置后启用面板）
+ADMIN_PASSWORD=your_admin_password
+
+# 服务监听
 HOST=127.0.0.1
 PORT=8000
 ```
 
-说明：
-
-- `KIMI_TOKEN` 是访问 Kimi 的真实 token
-- `OPENAI_API_KEY` 是你暴露给 OpenAI 客户端使用的服务端鉴权 key
-- 若未设置 `OPENAI_API_KEY`，服务端将不校验外部 Bearer Token
-- `MODEL` 可选，默认基础模型为 `kimi-k2.5`
-
-## 启动服务
+### 启动
 
 ```bash
-uv run .\main.py
+uv sync
+uv run python run.py
 ```
 
-启动后默认地址：
+### Docker 部署
 
-```text
-http://127.0.0.1:8000
+```bash
+docker compose up -d
 ```
 
-## OpenAI SDK 用法
+环境变量通过 `.env` 文件或 `docker-compose.yml` 的 `environment` 配置。
+
+## 使用示例
+
+### OpenAI SDK
 
 ```python
 from openai import OpenAI
 
 client = OpenAI(
-    api_key="sk-kimi2api",
+    api_key="your_api_key_here",
     base_url="http://127.0.0.1:8000/v1",
 )
 
@@ -81,48 +93,89 @@ resp = client.chat.completions.create(
 print(resp.choices[0].message.content)
 ```
 
-## 模型别名
-
-- `kimi-k2.5` / `kimi-k2`：默认不带思考、不带搜索
-- `kimi-2.6-fast`：兼容 Kimi 2.6 Fast
-- `kimi-2.6-thinking`：兼容 Kimi 2.6 思考
-- `kimi-2.6-search`：兼容 Kimi 2.6 搜索
-- `kimi-2.6-thinking-search` / `kimi-2.6-search-thinking`：同时开启思考和搜索
-- `kimi-k2.5-thinking` / `kimi-k2-thinking`：开启思考
-- `kimi-k2.5-search` / `kimi-k2-search`：开启搜索
-- `kimi-k2.5-thinking-search` / `kimi-k2.5-search-thinking`：同时开启思考和搜索
-- `kimi-k2-thinking-search` / `kimi-k2-search-thinking`：同时开启思考和搜索
-- `kimi-thinking` / `kimi-search`：兼容旧别名，默认落到 `kimi-k2.5`
-- `kimi-thinking-search` / `kimi-search-thinking`：兼容旧组合别名，默认落到 `kimi-k2.5`
-- 也支持继续通过请求字段显式控制：`enable_thinking`、`reasoning`、`enable_web_search`、`web_search`、`search`
-
-## curl 示例
+### curl
 
 ```bash
 curl http://127.0.0.1:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer sk-kimi2api" \
-  -d "{\"model\":\"kimi-k2.5\",\"messages\":[{\"role\":\"user\",\"content\":\"你好\"}]}"
+  -H "Authorization: Bearer your_api_key_here" \
+  -d '{"model":"kimi-k2.5","messages":[{"role":"user","content":"你好"}]}'
 ```
 
-## Responses API 示例
+### Responses API
 
 ```bash
 curl http://127.0.0.1:8000/v1/responses \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer sk-kimi2api" \
-  -d "{\"model\":\"kimi-k2.5\",\"input\":\"请总结一下 Kimi2API 的作用\"}"
+  -H "Authorization: Bearer your_api_key_here" \
+  -d '{"model":"kimi-k2.5","input":"请总结一下 Kimi2API 的作用"}'
 ```
 
-## 设计说明
+## 支持的模型
 
-- KISS：服务端只做 OpenAI 协议兼容和 Kimi 协议转换，不做无关的中间层堆叠
-- YAGNI：未提前实现 Kimi 不支持的图片、音频、嵌入真实能力，只对未支持端点返回标准错误
-- DRY：统一了错误格式、请求特性提取、Responses/Chat 转换和 SSE 输出逻辑
-- SOLID：客户端负责 Kimi 通信，服务端负责 OpenAI 兼容协议，两层职责分离
+通过模型别名自动控制思考和搜索能力：
+
+| 别名格式 | 说明 |
+|---------|------|
+| `kimi-k2.5` | 默认，不带思考、不带搜索 |
+| `kimi-k2.5-thinking` | 开启思考 |
+| `kimi-k2.5-search` | 开启搜索 |
+| `kimi-k2.5-thinking-search` | 同时开启思考和搜索 |
+| `kimi-k2` | k2 基础模型 |
+| `kimi-2.6-fast` | Kimi 2.6 Fast |
+| `kimi-2.6-thinking` | Kimi 2.6 思考 |
+| `kimi-2.6-search` | Kimi 2.6 搜索 |
+
+也支持通过请求字段显式控制：`enable_thinking`、`enable_web_search`。
+
+## Token 说明
+
+支持两种 Token 格式：
+
+- **Refresh Token**（推荐）：以 `cpmt_` 开头，服务自动换取短期 access token 并定时刷新
+- **JWT Access Token**：以 `eyJ` 开头，有效期较短，过期后需重新获取
+
+获取方式：浏览器登录 [kimi.com](https://kimi.com)，从开发者工具的 Cookie 或网络请求中提取。
+
+## 环境变量
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `KIMI_TOKEN` | 是 | — | Kimi 认证 Token |
+| `OPENAI_API_KEY` | 否 | 空 | API 鉴权 Key，建议通过管理面板创建 |
+| `ADMIN_PASSWORD` | 否 | — | 管理面板密码，设置后启用 |
+| `HOST` | 否 | `127.0.0.1` | 监听地址 |
+| `PORT` | 否 | `8000` | 监听端口 |
+| `MODEL` | 否 | `kimi-k2.5` | 默认模型 |
+| `TIMEOUT` | 否 | `120` | 请求超时（秒） |
+| `SESSION_SECRET` | 否 | 随机 | Cookie 签名密钥，不设则重启失效 |
+| `SECURE_COOKIES` | 否 | `true` | HTTPS 环境设 true |
+| `DATA_DIR` | 否 | `data` | 数据持久化目录 |
+
+## 项目结构
+
+```
+app/
+├── main.py                 # FastAPI 应用工厂 + 启动入口
+├── config.py               # 集中配置管理
+├── api/                    # OpenAI 兼容 API
+│   ├── routes.py           # /v1/* 路由
+│   └── deps.py             # 依赖注入 + 工具函数
+├── core/                   # 核心业务
+│   ├── auth.py             # 管理员鉴权
+│   ├── keys.py             # API Key 存储
+│   ├── logs.py             # 请求日志
+│   └── token_manager.py    # Token 自动刷新
+├── kimi/                   # Kimi 客户端
+│   ├── protocol.py         # Connect/gRPC 协议 + 数据模型
+│   └── client.py           # HTTP 客户端
+└── dashboard/              # 管理面板
+    ├── routes.py           # /admin/* 路由
+    └── templates/          # Jinja2 模板
+```
 
 ## 注意事项
 
-- 这是基于 Kimi Web 协议的非官方实现，官方协议变更后可能需要同步修复
-- 当前 `usage` 无法从 Kimi 流中准确统计，暂返回 `0`
-- 未实现的 OpenAI 端点会返回 `501 unsupported_endpoint`
+- 基于 Kimi Web 协议的非官方实现，官方协议变更后可能需要同步修复
+- `usage` 无法从 Kimi 流中准确统计，暂返回 `0`
+- 未实现的 OpenAI 端点返回 `501 unsupported_endpoint`

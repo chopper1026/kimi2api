@@ -1,205 +1,31 @@
 import asyncio
-import base64
-import json
-import os
-import random
 import time
 import uuid
-from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 import httpx
 
-KIMI_API_BASE = os.getenv("KIMI_API_BASE", "https://www.kimi.com")
-KIMI_CHAT_PATH = "/apiv2/kimi.gateway.chat.v1.ChatService/Chat"
-KIMI_SUBSCRIPTION_PATH = (
-    "/apiv2/kimi.gateway.order.v1.SubscriptionService/GetSubscription"
+from ..config import Config as _Config
+from ..core.token_manager import get_token_manager
+from .protocol import (
+    KIMI_API_BASE,
+    KIMI_CHAT_PATH,
+    KIMI_RESEARCH_USAGE_PATH,
+    KIMI_SCENARIO,
+    KIMI_SUBSCRIPTION_PATH,
+    ChatCompletion,
+    ChatCompletionChunk,
+    ChatCompletionChoice,
+    ChatCompletionMessage,
+    ChatCompletionUsage,
+    ConversationContext,
+    KimiAPIError,
+    Message,
+    _encode_connect_request,
+    _format_messages,
+    generate_device_id,
+    generate_session_id,
 )
-KIMI_RESEARCH_USAGE_PATH = "/api/chat/research/usage"
-KIMI_SCENARIO = "SCENARIO_K2D5"
-
-FAKE_HEADERS = {
-    "Accept": "*/*",
-    "Accept-Encoding": "gzip, deflate, br, zstd",
-    "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Cache-Control": "no-cache",
-    "Pragma": "no-cache",
-    "Origin": KIMI_API_BASE,
-    "R-Timezone": "Asia/Shanghai",
-    "Sec-Ch-Ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-    "Sec-Ch-Ua-Mobile": "?0",
-    "Sec-Ch-Ua-Platform": '"Windows"',
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-origin",
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/131.0.0.0 Safari/537.36"
-    ),
-    "Priority": "u=1, i",
-    "X-Msh-Platform": "web",
-}
-
-THINKING_STAGE_NAME = "STAGE_NAME_THINKING"
-
-
-class KimiAPIError(Exception):
-    pass
-
-
-def generate_device_id() -> str:
-    return str(random.randint(7000000000000000000, 7999999999999999999))
-
-
-def generate_session_id() -> str:
-    return str(random.randint(1700000000000000000, 1799999999999999999))
-
-
-def parse_jwt(token: str) -> Optional[Dict[str, Any]]:
-    try:
-        parts = token.split(".")
-        if len(parts) != 3:
-            return None
-        payload = parts[1]
-        payload += "=" * (-len(payload) % 4)
-        return json.loads(base64.urlsafe_b64decode(payload.encode("utf-8")))
-    except Exception:
-        return None
-
-
-def detect_token_type(token: str) -> str:
-    if token.startswith("eyJ") and len(token.split(".")) == 3:
-        payload = parse_jwt(token)
-        if payload and payload.get("app_id") == "kimi" and payload.get("typ") == "access":
-            return "jwt"
-    return "refresh"
-
-
-@dataclass
-class Message:
-    role: str
-    content: Any
-    name: Optional[str] = None
-    tool_call_id: Optional[str] = None
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-
-    def text_content(self) -> str:
-        if isinstance(self.content, str):
-            return self.content
-        if isinstance(self.content, list):
-            parts: List[str] = []
-            for item in self.content:
-                if isinstance(item, str):
-                    parts.append(item)
-                elif isinstance(item, dict):
-                    if item.get("type") == "text":
-                        parts.append(str(item.get("text", "")))
-                    elif "text" in item:
-                        parts.append(str(item.get("text", "")))
-            return "\n".join(part for part in parts if part)
-        if self.content is None:
-            return ""
-        return str(self.content)
-
-
-@dataclass
-class ChatCompletionMessage:
-    role: str
-    content: Optional[str]
-    reasoning_content: Optional[str] = None
-
-
-@dataclass
-class ChatCompletionChoice:
-    index: int
-    message: ChatCompletionMessage
-    finish_reason: str
-
-
-@dataclass
-class ChatCompletionUsage:
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
-
-
-@dataclass
-class ChatCompletion:
-    id: str
-    created: int
-    model: str
-    choices: List[ChatCompletionChoice]
-    usage: ChatCompletionUsage
-    object: str = "chat.completion"
-
-
-@dataclass
-class ChatCompletionChunk:
-    id: str
-    created: int
-    model: str
-    choices: List[Dict[str, Any]]
-    object: str = "chat.completion.chunk"
-
-
-@dataclass
-class ConversationContext:
-    request_conversation_id: str
-    remote_chat_id: Optional[str] = None
-    last_assistant_message_id: Optional[str] = None
-    created_at: float = field(default_factory=time.time)
-
-
-def _wrap_urls(text: str) -> str:
-    return text
-
-
-def _format_messages(messages: List[Message]) -> str:
-    system_lines: List[str] = []
-    body_lines: List[str] = []
-
-    for message in messages:
-        role = message.role
-        text = message.text_content().strip()
-
-        if role == "assistant" and message.tool_calls:
-            tool_calls_text = "\n".join(
-                (
-                    f"[call:{call.get('function', {}).get('name', '')}]"
-                    f"{call.get('function', {}).get('arguments', '')}[/call]"
-                )
-                for call in message.tool_calls
-            ).strip()
-            if tool_calls_text:
-                text = f"[function_calls]\n{tool_calls_text}\n[/function_calls]"
-
-        if role == "tool" and message.tool_call_id:
-            role = "user"
-            text = f"[TOOL_RESULT for {message.tool_call_id}] {text}".strip()
-
-        if not text:
-            continue
-
-        if role == "system":
-            system_lines.append(text)
-            continue
-
-        if role == "user":
-            text = _wrap_urls(text)
-
-        body_lines.append(f"{role}:{text}")
-
-    return "\n".join([*(f"system:{line}" for line in system_lines), *body_lines]).strip()
-
-
-def _encode_connect_request(payload: Dict[str, Any]) -> bytes:
-    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    # Connect 协议帧: 1 字节 flag (0x00) + 4 字节大端长度 + JSON 载荷
-    header = bytearray(5)
-    header[0] = 0x00
-    header[1:5] = len(body).to_bytes(4, "big")
-    return bytes(header) + body
 
 
 class _ChatNamespace:
@@ -272,42 +98,40 @@ class Kimi2API:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        timeout: float = 120.0,
+        timeout: Optional[float] = None,
         max_retries: int = 3,
         base_url: Optional[str] = None,
         **kwargs: Any,
     ):
         del kwargs
 
-        token = api_key or os.getenv("KIMI_TOKEN")
-        if not token:
-            raise ValueError(
-                "API key is required. Set KIMI_TOKEN env variable or pass api_key."
-            )
-
-        self._kimi_token = token
+        self._token_manager = get_token_manager()
         self._base_url = (base_url or KIMI_API_BASE).rstrip("/")
-        self._timeout = timeout
+        self._timeout = timeout or _Config.TIMEOUT
         self._max_retries = max_retries
-        self._device_id = self._extract_device_id(token) or generate_device_id()
+        self._device_id = generate_device_id()
         self._session_id = generate_session_id()
         self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(timeout),
+            timeout=httpx.Timeout(self._timeout),
             follow_redirects=True,
         )
         self._conversation_contexts: Dict[str, ConversationContext] = {}
         self.chat = _ChatNamespace(self)
 
-    def _get_headers(self, token: Optional[str] = None) -> Dict[str, str]:
+    async def _get_headers(self, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        from .protocol import FAKE_HEADERS
+
+        token = await self._token_manager.get_access_token()
         headers = {
             **FAKE_HEADERS,
             "Origin": self._base_url,
             "X-Msh-Device-Id": self._device_id,
             "X-Msh-Session-Id": self._session_id,
             "Connect-Protocol-Version": "1",
+            "Authorization": f"Bearer {token}",
         }
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
+        if extra:
+            headers.update(extra)
         return headers
 
     async def _request_with_retries(
@@ -342,14 +166,6 @@ class Kimi2API:
             raise KimiAPIError("request failed without a detailed error")
         raise KimiAPIError(f"request failed after {self._max_retries} attempts: {last_error}")
 
-    def _extract_user_id(self, token: str) -> Optional[str]:
-        payload = parse_jwt(token)
-        return payload.get("sub") if payload else None
-
-    def _extract_device_id(self, token: str) -> Optional[str]:
-        payload = parse_jwt(token)
-        return payload.get("device_id") if payload else None
-
     async def validate_token(self) -> bool:
         try:
             data = await self.get_subscription()
@@ -359,11 +175,12 @@ class Kimi2API:
 
     async def get_subscription(self) -> Optional[Dict[str, Any]]:
         try:
+            headers = await self._get_headers()
             response = await self._request_with_retries(
                 "POST",
                 f"{self._base_url}{KIMI_SUBSCRIPTION_PATH}",
                 json={},
-                headers=self._get_headers(self._kimi_token),
+                headers=headers,
                 timeout=15.0,
             )
             if response.status_code != 200:
@@ -374,10 +191,11 @@ class Kimi2API:
 
     async def get_research_usage(self) -> Optional[Dict[str, Any]]:
         try:
+            headers = await self._get_headers()
             response = await self._request_with_retries(
                 "GET",
                 f"{self._base_url}{KIMI_RESEARCH_USAGE_PATH}",
-                headers=self._get_headers(self._kimi_token),
+                headers=headers,
                 timeout=15.0,
             )
             if response.status_code != 200:
@@ -430,9 +248,9 @@ class Kimi2API:
     async def _raise_for_response(self, response: httpx.Response) -> None:
         if response.status_code == 200:
             return
-        body = (await response.aread()).decode("utf-8", errors="ignore")
+        body = (await response.aread()).decode("utf-8", errors="ignore")[:100]
         raise KimiAPIError(
-            f"request failed with status {response.status_code}: {body or '<empty>'}"
+            f"upstream error {response.status_code}: {body or '<empty>'}"
         )
 
     def _update_context_from_event(
@@ -449,6 +267,8 @@ class Kimi2API:
     def _extract_phase(
         self, event: Dict[str, Any], current_phase: Optional[str]
     ) -> Optional[str]:
+        from .protocol import THINKING_STAGE_NAME
+
         stages = event.get("block", {}).get("multiStage", {}).get("stages", [])
         if stages:
             first_stage = stages[0]
@@ -535,6 +355,8 @@ class Kimi2API:
         model: str,
         context: ConversationContext,
     ) -> ChatCompletion:
+        import json
+
         content = _encode_connect_request(request_body)
         reasoning_parts: List[str] = []
         content_parts: List[str] = []
@@ -547,16 +369,36 @@ class Kimi2API:
             content_parts.clear()
             current_phase = None
             try:
+                headers = await self._get_headers({"Content-Type": "application/connect+json"})
                 async with self._client.stream(
                     "POST",
                     f"{self._base_url}{KIMI_CHAT_PATH}",
                     content=content,
-                    headers={
-                        **self._get_headers(self._kimi_token),
-                        "Content-Type": "application/connect+json",
-                    },
+                    headers=headers,
                     timeout=self._timeout,
                 ) as response:
+                    if response.status_code == 401:
+                        await self._token_manager.invalidate_and_retry()
+                        headers = await self._get_headers({"Content-Type": "application/connect+json"})
+                        async with self._client.stream(
+                            "POST",
+                            f"{self._base_url}{KIMI_CHAT_PATH}",
+                            content=content,
+                            headers=headers,
+                            timeout=self._timeout,
+                        ) as response2:
+                            await self._raise_for_response(response2)
+                            async for event in self._iter_grpc_events(response2, context):
+                                delta = self._extract_delta(event, current_phase)
+                                current_phase = delta["phase"]
+                                if delta["reasoning_content"]:
+                                    reasoning_parts.append(delta["reasoning_content"])
+                                if delta["content"]:
+                                    content_parts.append(delta["content"])
+                                if "done" in event:
+                                    break
+                        break
+
                     await self._raise_for_response(response)
 
                     async for event in self._iter_grpc_events(response, context):
@@ -618,16 +460,85 @@ class Kimi2API:
             sent_stop = False
             current_phase: Optional[str] = None
 
+            headers = await self._get_headers({"Content-Type": "application/connect+json"})
             async with self._client.stream(
                 "POST",
                 f"{self._base_url}{KIMI_CHAT_PATH}",
                 content=content,
-                headers={
-                    **self._get_headers(self._kimi_token),
-                    "Content-Type": "application/connect+json",
-                },
+                headers=headers,
                 timeout=self._timeout,
             ) as response:
+                if response.status_code == 401:
+                    await self._token_manager.invalidate_and_retry()
+                    headers = await self._get_headers({"Content-Type": "application/connect+json"})
+                    async with self._client.stream(
+                        "POST",
+                        f"{self._base_url}{KIMI_CHAT_PATH}",
+                        content=content,
+                        headers=headers,
+                        timeout=self._timeout,
+                    ) as response:
+                        async for event in self._iter_grpc_events(response, context):
+                            chunk_id = context.remote_chat_id or context.request_conversation_id
+                            if not sent_role:
+                                sent_role = True
+                                yield ChatCompletionChunk(
+                                    id=chunk_id,
+                                    created=created,
+                                    model=model,
+                                    choices=[{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
+                                )
+
+                            delta = self._extract_delta(event, current_phase)
+                            current_phase = delta["phase"]
+
+                            if delta["reasoning_content"]:
+                                yield ChatCompletionChunk(
+                                    id=chunk_id,
+                                    created=created,
+                                    model=model,
+                                    choices=[
+                                        {
+                                            "index": 0,
+                                            "delta": {"reasoning_content": delta["reasoning_content"]},
+                                            "finish_reason": None,
+                                        }
+                                    ],
+                                )
+
+                            if delta["content"]:
+                                yield ChatCompletionChunk(
+                                    id=chunk_id,
+                                    created=created,
+                                    model=model,
+                                    choices=[
+                                        {
+                                            "index": 0,
+                                            "delta": {"content": delta["content"]},
+                                            "finish_reason": None,
+                                        }
+                                    ],
+                                )
+
+                            if "done" in event:
+                                sent_stop = True
+                                yield ChatCompletionChunk(
+                                    id=chunk_id,
+                                    created=created,
+                                    model=model,
+                                    choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                                )
+                                break
+                        if not sent_stop:
+                            chunk_id = context.remote_chat_id or context.request_conversation_id
+                            yield ChatCompletionChunk(
+                                id=chunk_id,
+                                created=created,
+                                model=model,
+                                choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                            )
+                        return
+
                 await self._raise_for_response(response)
 
                 async for event in self._iter_grpc_events(response, context):
@@ -705,12 +616,12 @@ class Kimi2API:
 
 def create_client(
     api_key: Optional[str] = None,
-    timeout: float = 120.0,
+    timeout: Optional[float] = None,
     max_retries: int = 3,
     base_url: Optional[str] = None,
 ) -> Kimi2API:
+    del api_key
     return Kimi2API(
-        api_key=api_key,
         timeout=timeout,
         max_retries=max_retries,
         base_url=base_url,

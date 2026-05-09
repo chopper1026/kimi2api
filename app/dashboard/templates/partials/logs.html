@@ -1,0 +1,39 @@
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">请求日志</h2>
+        <span class="text-gray-500 text-sm">最近 {{ logs | length }} 条</span>
+    </div>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
+                    <th class="px-5 py-3 text-left">时间</th>
+                    <th class="px-5 py-3 text-left">Key</th>
+                    <th class="px-5 py-3 text-left">模型</th>
+                    <th class="px-5 py-3 text-left">状态</th>
+                    <th class="px-5 py-3 text-right">耗时</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for log in logs %}
+                <tr class="border-b border-gray-800/50 hover:bg-gray-800/50">
+                    <td class="px-5 py-2.5 text-gray-400 text-xs font-mono whitespace-nowrap">{{ log.time_str }}</td>
+                    <td class="px-5 py-2.5 text-gray-300 text-xs">{{ log.api_key_name }}</td>
+                    <td class="px-5 py-2.5 text-xs font-mono">{{ log.model }}</td>
+                    <td class="px-5 py-2.5 text-xs">
+                        {% if log.status == 'success' %}
+                        <span class="text-green-400">{{ log.status_code }}</span>
+                        {% else %}
+                        <span class="text-red-400">{{ log.status_code }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-5 py-2.5 text-right text-gray-400 text-xs">{{ log.duration_ms }}ms</td>
+                </tr>
+            {% endfor %}
+            {% if not logs %}
+                <tr><td colspan="5" class="px-5 py-8 text-center text-gray-500">暂无请求记录</td></tr>
+            {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
