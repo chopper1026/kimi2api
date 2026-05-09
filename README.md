@@ -287,9 +287,16 @@ docker-compose.yml     # Compose 部署配置
 ## 开发
 
 ```bash
-uv sync
-uv run python -m compileall app run.py
+uv sync --group dev
+uv run pytest
+uv run python -m compileall app tests run.py
 uv run python run.py
+```
+
+测试统一使用 `pytest`，需要查看覆盖率时运行：
+
+```bash
+uv run pytest --cov=app
 ```
 
 常用检查：
