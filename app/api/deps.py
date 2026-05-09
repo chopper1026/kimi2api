@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from ..config import Config
 from ..kimi import Kimi2API, KimiAPIError, ChatCompletion, ChatCompletionChunk
 from ..core.keys import validate_api_key as _validate_api_key
-from ..core.keys import get_key as _get_key, total_key_count as _total_key_count
+from ..core.keys import get_key as _get_key
 from ..core.logs import RequestLog, log_request
 
 # ---------------------------------------------------------------------------
@@ -392,9 +392,6 @@ async def _create_streaming_responses_response(
 async def verify_api_key(
     authorization: Optional[str] = Header(default=None),
 ) -> None:
-    if _total_key_count() == 0:
-        return
-
     api_key = _validate_api_key(authorization)
     if api_key is None:
         raise HTTPException(

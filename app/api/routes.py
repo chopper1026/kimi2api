@@ -11,7 +11,6 @@ from ..core.logs import RequestLog, log_request
 
 from .deps import (
     DEFAULT_MODELS,
-    SERVER_NAME,
     _chat_completion_to_dict,
     _chat_to_responses_api_dict,
     _create_streaming_chat_response,
@@ -29,18 +28,8 @@ router = APIRouter()
 
 
 # ---------------------------------------------------------------------------
-# Health & root
+# Health
 # ---------------------------------------------------------------------------
-
-@router.get("/")
-async def root() -> Dict[str, Any]:
-    return {
-        "object": "service",
-        "name": SERVER_NAME,
-        "version": "1.2.0",
-        "endpoints": ["/v1/models", "/v1/chat/completions", "/v1/completions", "/v1/responses"],
-    }
-
 
 @router.get("/healthz")
 async def healthz() -> Dict[str, str]:

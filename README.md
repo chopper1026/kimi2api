@@ -19,13 +19,14 @@ Kimi2API 是一个基于 Kimi Web 协议封装的 OpenAI 兼容 API 服务。它
 
 ## 接口
 
-无需鉴权：
+公开接口：
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/` | 服务信息 |
 | `GET` | `/healthz` | 健康检查 |
 | `GET` | `/admin` | 管理面板入口 |
+
+根路径 `/` 不返回服务信息，避免在公网部署时暴露服务指纹和接口枚举。
 
 OpenAI 兼容接口：
 
@@ -37,7 +38,7 @@ OpenAI 兼容接口：
 | `POST` | `/v1/completions` | Legacy Completions |
 | `POST` | `/v1/responses` | Responses API |
 
-当 API Key 存储为空时，`/v1/*` 接口不强制鉴权。设置 `OPENAI_API_KEY` 或在管理面板创建 Key 后，接口会要求请求头带上：
+`/v1/*` 接口始终要求有效 API Key。可以通过 `OPENAI_API_KEY` 预置一个默认 Key，也可以登录管理面板创建 Key；如果系统里没有任何 Key，所有 OpenAI 兼容接口都会返回 `401`，避免误部署成公开可用服务。
 
 ```http
 Authorization: Bearer your_api_key_here
@@ -67,13 +68,13 @@ ADMIN_PASSWORD=your_admin_password
 SECURE_COOKIES=false
 ```
 
-如果希望服务启动后立刻启用 `/v1/*` API 鉴权，也可以设置：
+如果希望服务启动后立刻可以调用 `/v1/*` 接口，也需要设置：
 
 ```env
 OPENAI_API_KEY=your_api_key_here
 ```
 
-否则可以启动后登录 `/admin` 创建 API Key。
+不填写 `OPENAI_API_KEY` 时，`/v1/*` 接口会先返回 `401`；启动后登录 `/admin` 创建 API Key，再用新 Key 调用接口。
 
 ### 2. 启动服务
 
@@ -111,7 +112,7 @@ Compose 会把容器内 `/app/data` 挂载到 `kimi2api-data` volume，用于保
 | `KIMI_API_BASE` | 否 | `https://www.kimi.com` | Kimi Web 服务地址 |
 | `TIMEOUT` | 否 | `120` | 请求超时时间，单位秒 |
 | `MODEL` | 否 | `kimi-k2.5` | 默认模型；`.env.example` 中示例为 `kimi-k2.6` |
-| `OPENAI_API_KEY` | 否 | 空 | 本服务对外暴露的 API Key；设置后会写入本地 Key 存储 |
+| `OPENAI_API_KEY` | 否 | 空 | 本服务对外暴露的默认 API Key；为空时需先在管理面板创建 Key，否则 `/v1/*` 全部拒绝访问 |
 | `ADMIN_PASSWORD` | 是 | 空 | 管理面板密码；为空时管理面板不可用 |
 | `SESSION_SECRET` | 否 | 自动生成 | 管理面板 Cookie 签名密钥；为空时写入 `data/.session_secret` |
 | `SECURE_COOKIES` | 否 | `true` | Cookie 是否带 `Secure` 标记；本地 HTTP 调试设为 `false` |
