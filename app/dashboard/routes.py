@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from html import escape
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Form, Request, Response
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from ..core.auth import (
@@ -20,13 +20,12 @@ from ..core.auth import (
     verify_password,
     verify_session,
 )
-from ..core.keys import create_key, delete_key, get_key, list_keys, total_request_count
+from ..core.keys import create_key, delete_key, list_keys, total_request_count
 from ..core.logs import get_recent_logs
 from ..core.kimi_token_store import save_kimi_token
 from ..core.token_manager import get_token_manager, replace_token_manager
 
 import jinja2
-import os as _os
 
 _START_TIME: float = 0.0
 
@@ -35,7 +34,7 @@ def set_start_time(t: float) -> None:
     global _START_TIME
     _START_TIME = t
 
-_TEMPLATES_DIR = _os.path.join(_os.path.dirname(__file__), "templates")
+_TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 _env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(_TEMPLATES_DIR),
     autoescape=True,
@@ -126,7 +125,6 @@ def _token_info() -> Dict[str, Any]:
 
 
 def _key_list() -> List[Dict[str, Any]]:
-    now = time.time()
     result = []
     for k in list_keys():
         result.append({

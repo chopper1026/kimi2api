@@ -71,3 +71,4 @@ def save_kimi_token(raw_token: str) -> None:
             indent=2,
         )
     os.replace(tmp, token_file)
+    os.chmod(token_file, 0o600)

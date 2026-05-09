@@ -364,8 +364,6 @@ class Kimi2API:
         model: str,
         context: ConversationContext,
     ) -> ChatCompletion:
-        import json
-
         content = _encode_connect_request(request_body)
         reasoning_parts: List[str] = []
         content_parts: List[str] = []

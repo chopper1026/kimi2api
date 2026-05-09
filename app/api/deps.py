@@ -3,7 +3,7 @@ import logging
 import uuid
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
-from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi import Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
 from ..config import Config

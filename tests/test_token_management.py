@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import re
+import stat
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -48,6 +49,15 @@ class TokenManagementTest(unittest.TestCase):
         save_kimi_token("saved-token")
 
         self.assertEqual(load_configured_kimi_token(), "saved-token")
+
+    def test_saved_token_file_is_private(self):
+        from app.core.kimi_token_store import save_kimi_token
+
+        save_kimi_token("saved-token")
+
+        token_file = os.path.join(self.tmp.name, "kimi_token.json")
+        mode = stat.S_IMODE(os.stat(token_file).st_mode)
+        self.assertEqual(mode, 0o600)
 
     def test_main_starts_without_kimi_token(self):
         env = {

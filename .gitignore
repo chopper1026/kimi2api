@@ -31,3 +31,5 @@ Thumbs.db
 
 # Playwright MCP
 .playwright-mcp/
+.pytest_cache/
+.ruff_cache/
