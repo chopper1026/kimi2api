@@ -87,7 +87,7 @@ def _token_info() -> Dict[str, Any]:
             "token_status": "未配置",
         }
 
-    state = mgr._state
+    state = mgr.get_state()
     now = time.time()
 
     if state.expires_at > 0:

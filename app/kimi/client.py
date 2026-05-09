@@ -1,5 +1,4 @@
 import asyncio
-import json
 import time
 import uuid
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
@@ -8,6 +7,19 @@ import httpx
 
 from ..config import Config as _Config
 from ..core.token_manager import get_token_manager
+from .chunks import (
+    build_chat_completion,
+    content_chunk,
+    reasoning_chunk,
+    role_chunk,
+    stop_chunk,
+)
+from .events import (
+    extract_delta,
+    extract_explicit_phase,
+    iter_grpc_events,
+    update_context_from_event,
+)
 from .protocol import (
     KIMI_CHAT_PATH,
     KIMI_RESEARCH_USAGE_PATH,
@@ -15,9 +27,6 @@ from .protocol import (
     KIMI_SUBSCRIPTION_PATH,
     ChatCompletion,
     ChatCompletionChunk,
-    ChatCompletionChoice,
-    ChatCompletionMessage,
-    ChatCompletionUsage,
     ConversationContext,
     KimiAPIError,
     Message,
@@ -259,29 +268,10 @@ class Kimi2API:
     def _update_context_from_event(
         self, context: ConversationContext, event: Dict[str, Any]
     ) -> None:
-        if event.get("chat", {}).get("id"):
-            context.remote_chat_id = event["chat"]["id"]
-        if (
-            event.get("message", {}).get("role") == "assistant"
-            and event.get("message", {}).get("id")
-        ):
-            context.last_assistant_message_id = event["message"]["id"]
+        update_context_from_event(context, event)
 
     def _extract_explicit_phase(self, event: Dict[str, Any]) -> Optional[str]:
-        from .protocol import THINKING_STAGE_NAME
-
-        stages = event.get("block", {}).get("multiStage", {}).get("stages", [])
-        if stages:
-            first_stage = stages[0]
-            if first_stage.get("name") == THINKING_STAGE_NAME:
-                return "answer" if first_stage.get("status") == "completed" else "thinking"
-
-        flags = event.get("block", {}).get("text", {}).get("flags")
-        if flags == "thinking":
-            return "thinking"
-        if flags == "answer":
-            return "answer"
-        return None
+        return extract_explicit_phase(event)
 
     def _extract_phase(
         self, event: Dict[str, Any], current_phase: Optional[str]
@@ -291,72 +281,45 @@ class Kimi2API:
     def _extract_delta(
         self, event: Dict[str, Any], current_phase: Optional[str]
     ) -> Dict[str, Optional[str]]:
-        if event.get("heartbeat"):
-            return {"phase": current_phase, "content": None, "reasoning_content": None}
-
-        explicit_phase = self._extract_explicit_phase(event)
-        phase = explicit_phase or current_phase
-        mask = event.get("mask", "")
-
-        if "block.think" in mask:
-            return {
-                "phase": phase or "thinking",
-                "content": None,
-                "reasoning_content": event.get("block", {}).get("think", {}).get("content"),
-            }
-
-        if "block.text" in mask:
-            content = event.get("block", {}).get("text", {}).get("content")
-            if explicit_phase == "thinking":
-                return {"phase": phase, "content": None, "reasoning_content": content}
-            return {"phase": phase if explicit_phase else "answer", "content": content, "reasoning_content": None}
-
-        content = event.get("block", {}).get("text", {}).get("content")
-        if explicit_phase == "thinking":
-            return {"phase": phase, "content": None, "reasoning_content": content}
-        if content is not None:
-            return {"phase": phase if explicit_phase else "answer", "content": content, "reasoning_content": None}
-        return {"phase": phase, "content": None, "reasoning_content": None}
+        return extract_delta(event, current_phase)
 
     async def _iter_grpc_events(
         self, response: httpx.Response, context: ConversationContext
     ) -> AsyncIterator[Dict[str, Any]]:
-        buffer = bytearray()
-        async for chunk in response.aiter_bytes():
-            buffer.extend(chunk)
-            offset = 0
+        async for event in iter_grpc_events(response, context):
+            yield event
 
-            while offset + 5 <= len(buffer):
-                flag = buffer[offset]
-                length = int.from_bytes(buffer[offset + 1 : offset + 5], "big")
-                frame_end = offset + 5 + length
-                if frame_end > len(buffer):
-                    break
+    async def _iter_chat_events(
+        self,
+        content: bytes,
+        context: ConversationContext,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        headers = await self._get_headers({"Content-Type": "application/connect+json"})
+        async with self._client.stream(
+            "POST",
+            f"{self._base_url}{KIMI_CHAT_PATH}",
+            content=content,
+            headers=headers,
+            timeout=self._timeout,
+        ) as response:
+            if response.status_code != 401:
+                await self._raise_for_response(response)
+                async for event in self._iter_grpc_events(response, context):
+                    yield event
+                return
 
-                payload = bytes(buffer[offset + 5 : frame_end])
-                offset = frame_end
-
-                if flag & 0x80:
-                    continue
-
-                text = payload.decode("utf-8", errors="ignore").strip()
-                if not text:
-                    continue
-
-                try:
-                    event = json.loads(text)
-                except json.JSONDecodeError:
-                    continue
-
-                if event.get("error"):
-                    error = event["error"]
-                    raise KimiAPIError(error.get("message") or json.dumps(error, ensure_ascii=False))
-
-                self._update_context_from_event(context, event)
+        await self._token_manager.invalidate_and_retry()
+        headers = await self._get_headers({"Content-Type": "application/connect+json"})
+        async with self._client.stream(
+            "POST",
+            f"{self._base_url}{KIMI_CHAT_PATH}",
+            content=content,
+            headers=headers,
+            timeout=self._timeout,
+        ) as response:
+            await self._raise_for_response(response)
+            async for event in self._iter_grpc_events(response, context):
                 yield event
-
-            if offset:
-                del buffer[:offset]
 
     async def _sync_chat(
         self,
@@ -376,47 +339,15 @@ class Kimi2API:
             content_parts.clear()
             current_phase = None
             try:
-                headers = await self._get_headers({"Content-Type": "application/connect+json"})
-                async with self._client.stream(
-                    "POST",
-                    f"{self._base_url}{KIMI_CHAT_PATH}",
-                    content=content,
-                    headers=headers,
-                    timeout=self._timeout,
-                ) as response:
-                    if response.status_code == 401:
-                        await self._token_manager.invalidate_and_retry()
-                        headers = await self._get_headers({"Content-Type": "application/connect+json"})
-                        async with self._client.stream(
-                            "POST",
-                            f"{self._base_url}{KIMI_CHAT_PATH}",
-                            content=content,
-                            headers=headers,
-                            timeout=self._timeout,
-                        ) as response2:
-                            await self._raise_for_response(response2)
-                            async for event in self._iter_grpc_events(response2, context):
-                                delta = self._extract_delta(event, current_phase)
-                                current_phase = delta["phase"]
-                                if delta["reasoning_content"]:
-                                    reasoning_parts.append(delta["reasoning_content"])
-                                if delta["content"]:
-                                    content_parts.append(delta["content"])
-                                if "done" in event:
-                                    break
+                async for event in self._iter_chat_events(content, context):
+                    delta = self._extract_delta(event, current_phase)
+                    current_phase = delta["phase"]
+                    if delta["reasoning_content"]:
+                        reasoning_parts.append(delta["reasoning_content"])
+                    if delta["content"]:
+                        content_parts.append(delta["content"])
+                    if "done" in event:
                         break
-
-                    await self._raise_for_response(response)
-
-                    async for event in self._iter_grpc_events(response, context):
-                        delta = self._extract_delta(event, current_phase)
-                        current_phase = delta["phase"]
-                        if delta["reasoning_content"]:
-                            reasoning_parts.append(delta["reasoning_content"])
-                        if delta["content"]:
-                            content_parts.append(delta["content"])
-                        if "done" in event:
-                            break
                 break
             except (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError, KimiAPIError) as exc:
                 last_error = exc
@@ -430,27 +361,12 @@ class Kimi2API:
             raise KimiAPIError(str(last_error))
 
         final_id = context.remote_chat_id or context.request_conversation_id
-        message = ChatCompletionMessage(
-            role="assistant",
-            content="".join(content_parts).strip() or None,
-            reasoning_content="".join(reasoning_parts).strip() or None,
-        )
-        return ChatCompletion(
-            id=final_id,
+        return build_chat_completion(
+            completion_id=final_id,
             created=created,
             model=model,
-            choices=[
-                ChatCompletionChoice(
-                    index=0,
-                    message=message,
-                    finish_reason="stop",
-                )
-            ],
-            usage=ChatCompletionUsage(
-                prompt_tokens=0,
-                completion_tokens=0,
-                total_tokens=0,
-            ),
+            content_parts=content_parts,
+            reasoning_parts=reasoning_parts,
         )
 
     def _stream_chat(
@@ -467,147 +383,39 @@ class Kimi2API:
             sent_stop = False
             current_phase: Optional[str] = None
 
-            headers = await self._get_headers({"Content-Type": "application/connect+json"})
-            async with self._client.stream(
-                "POST",
-                f"{self._base_url}{KIMI_CHAT_PATH}",
-                content=content,
-                headers=headers,
-                timeout=self._timeout,
-            ) as response:
-                if response.status_code == 401:
-                    await self._token_manager.invalidate_and_retry()
-                    headers = await self._get_headers({"Content-Type": "application/connect+json"})
-                    async with self._client.stream(
-                        "POST",
-                        f"{self._base_url}{KIMI_CHAT_PATH}",
-                        content=content,
-                        headers=headers,
-                        timeout=self._timeout,
-                    ) as response:
-                        async for event in self._iter_grpc_events(response, context):
-                            chunk_id = context.remote_chat_id or context.request_conversation_id
-                            if not sent_role:
-                                sent_role = True
-                                yield ChatCompletionChunk(
-                                    id=chunk_id,
-                                    created=created,
-                                    model=model,
-                                    choices=[{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
-                                )
+            async for event in self._iter_chat_events(content, context):
+                chunk_id = context.remote_chat_id or context.request_conversation_id
+                if not sent_role:
+                    sent_role = True
+                    yield role_chunk(chunk_id=chunk_id, created=created, model=model)
 
-                            delta = self._extract_delta(event, current_phase)
-                            current_phase = delta["phase"]
+                delta = self._extract_delta(event, current_phase)
+                current_phase = delta["phase"]
 
-                            if delta["reasoning_content"]:
-                                yield ChatCompletionChunk(
-                                    id=chunk_id,
-                                    created=created,
-                                    model=model,
-                                    choices=[
-                                        {
-                                            "index": 0,
-                                            "delta": {"reasoning_content": delta["reasoning_content"]},
-                                            "finish_reason": None,
-                                        }
-                                    ],
-                                )
+                if delta["reasoning_content"]:
+                    yield reasoning_chunk(
+                        chunk_id=chunk_id,
+                        created=created,
+                        model=model,
+                        reasoning_content=delta["reasoning_content"],
+                    )
 
-                            if delta["content"]:
-                                yield ChatCompletionChunk(
-                                    id=chunk_id,
-                                    created=created,
-                                    model=model,
-                                    choices=[
-                                        {
-                                            "index": 0,
-                                            "delta": {"content": delta["content"]},
-                                            "finish_reason": None,
-                                        }
-                                    ],
-                                )
+                if delta["content"]:
+                    yield content_chunk(
+                        chunk_id=chunk_id,
+                        created=created,
+                        model=model,
+                        content=delta["content"],
+                    )
 
-                            if "done" in event:
-                                sent_stop = True
-                                yield ChatCompletionChunk(
-                                    id=chunk_id,
-                                    created=created,
-                                    model=model,
-                                    choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}],
-                                )
-                                break
-                        if not sent_stop:
-                            chunk_id = context.remote_chat_id or context.request_conversation_id
-                            yield ChatCompletionChunk(
-                                id=chunk_id,
-                                created=created,
-                                model=model,
-                                choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}],
-                            )
-                        return
-
-                await self._raise_for_response(response)
-
-                async for event in self._iter_grpc_events(response, context):
-                    chunk_id = context.remote_chat_id or context.request_conversation_id
-                    if not sent_role:
-                        sent_role = True
-                        yield ChatCompletionChunk(
-                            id=chunk_id,
-                            created=created,
-                            model=model,
-                            choices=[{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
-                        )
-
-                    delta = self._extract_delta(event, current_phase)
-                    current_phase = delta["phase"]
-
-                    if delta["reasoning_content"]:
-                        yield ChatCompletionChunk(
-                            id=chunk_id,
-                            created=created,
-                            model=model,
-                            choices=[
-                                {
-                                    "index": 0,
-                                    "delta": {"reasoning_content": delta["reasoning_content"]},
-                                    "finish_reason": None,
-                                }
-                            ],
-                        )
-
-                    if delta["content"]:
-                        yield ChatCompletionChunk(
-                            id=chunk_id,
-                            created=created,
-                            model=model,
-                            choices=[
-                                {
-                                    "index": 0,
-                                    "delta": {"content": delta["content"]},
-                                    "finish_reason": None,
-                                }
-                            ],
-                        )
-
-                    if "done" in event:
-                        sent_stop = True
-                        yield ChatCompletionChunk(
-                            id=chunk_id,
-                            created=created,
-                            model=model,
-                            choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}],
-                        )
-                        break
+                if "done" in event:
+                    sent_stop = True
+                    yield stop_chunk(chunk_id=chunk_id, created=created, model=model)
+                    break
 
             if not sent_stop:
                 chunk_id = context.remote_chat_id or context.request_conversation_id
-                yield ChatCompletionChunk(
-                    id=chunk_id,
-                    created=created,
-                    model=model,
-                    choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}],
-                )
+                yield stop_chunk(chunk_id=chunk_id, created=created, model=model)
 
         return generator()
 

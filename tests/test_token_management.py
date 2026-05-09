@@ -5,6 +5,7 @@ import re
 import stat
 from unittest.mock import Mock
 
+from app.core.token_manager import TokenManager
 from app.core.kimi_token_store import load_configured_kimi_token, save_kimi_token
 from app.main import main
 
@@ -23,6 +24,21 @@ def test_saved_token_file_is_private(admin_config, tmp_data_dir):
     token_file = tmp_data_dir / "kimi_token.json"
     mode = stat.S_IMODE(os.stat(token_file).st_mode)
     assert mode == 0o600
+
+
+def test_token_manager_exposes_state_snapshot():
+    manager = TokenManager("refresh-token")
+
+    try:
+        state = manager.get_state()
+        state.access_token = "changed"
+
+        assert state.refresh_token == "refresh-token"
+        assert manager.get_state().access_token == "refresh-token"
+    finally:
+        import asyncio
+
+        asyncio.run(manager.close())
 
 
 def test_main_starts_without_kimi_token(

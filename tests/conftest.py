@@ -67,7 +67,7 @@ class TokenManagerStore:
         manager = token_manager._manager
         if manager is None:
             return None
-        return manager._state.refresh_token
+        return manager.get_state().refresh_token
 
 
 @pytest.fixture

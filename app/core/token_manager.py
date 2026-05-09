@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional
 
 import httpx
@@ -60,6 +60,9 @@ class TokenManager:
             if self._needs_refresh():
                 await self._do_refresh()
             return self._state.access_token
+
+    def get_state(self) -> TokenState:
+        return replace(self._state)
 
     async def _do_refresh(self) -> None:
         refresh_token = self._state.refresh_token
