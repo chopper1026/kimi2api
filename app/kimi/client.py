@@ -32,8 +32,13 @@ from .protocol import (
     Message,
     _encode_connect_request,
     _format_messages,
-    generate_device_id,
-    generate_session_id,
+)
+from .transport import (
+    KimiTransport,
+    build_kimi_headers,
+    load_or_create_client_identity,
+    process_session_id,
+    retry_after_seconds,
 )
 
 
@@ -125,30 +130,28 @@ class Kimi2API:
         self._base_url = (base_url or _Config.KIMI_API_BASE).rstrip("/")
         self._timeout = timeout or _Config.TIMEOUT
         self._max_retries = max_retries
-        self._device_id = generate_device_id()
-        self._session_id = generate_session_id()
-        self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(self._timeout),
-            follow_redirects=True,
+        self._device_id = load_or_create_client_identity().device_id
+        self._session_id = process_session_id()
+        self._transport = KimiTransport(
+            base_url=self._base_url,
+            timeout=self._timeout,
+            max_retries=self._max_retries,
         )
         self._conversation_contexts: Dict[str, ConversationContext] = {}
         self.chat = _ChatNamespace(self)
 
     async def _get_headers(self, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        from .protocol import FAKE_HEADERS
-
         token = await self._token_manager.get_access_token()
-        headers = {
-            **FAKE_HEADERS,
-            "Origin": self._base_url,
-            "X-Msh-Device-Id": self._device_id,
-            "X-Msh-Session-Id": self._session_id,
-            "Connect-Protocol-Version": "1",
-            "Authorization": f"Bearer {token}",
-        }
-        if extra:
-            headers.update(extra)
-        return headers
+        return build_kimi_headers(
+            base_url=self._base_url,
+            token=token,
+            device_id=self._device_id,
+            session_id=self._session_id,
+            extra={
+                "Connect-Protocol-Version": "1",
+                **(extra or {}),
+            },
+        )
 
     async def _request_with_retries(
         self,
@@ -158,29 +161,12 @@ class Kimi2API:
         retryable_status_codes: Optional[List[int]] = None,
         **kwargs: Any,
     ) -> httpx.Response:
-        retryable_status_codes = retryable_status_codes or [408, 429, 500, 502, 503, 504]
-        last_error: Optional[Exception] = None
-
-        for attempt in range(1, self._max_retries + 1):
-            try:
-                response = await self._client.request(method, url, **kwargs)
-                if response.status_code not in retryable_status_codes:
-                    return response
-                last_error = KimiAPIError(
-                    f"request failed with retryable status {response.status_code}"
-                )
-                if attempt == self._max_retries:
-                    return response
-            except (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError) as exc:
-                last_error = exc
-                if attempt == self._max_retries:
-                    break
-
-            await asyncio.sleep(min(0.5 * attempt, 2.0))
-
-        if last_error is None:
-            raise KimiAPIError("request failed without a detailed error")
-        raise KimiAPIError(f"request failed after {self._max_retries} attempts: {last_error}")
+        return await self._transport.request(
+            method,
+            url,
+            retryable_status_codes=retryable_status_codes,
+            **kwargs,
+        )
 
     async def validate_token(self) -> bool:
         try:
@@ -281,7 +267,10 @@ class Kimi2API:
             return
         body = (await response.aread()).decode("utf-8", errors="ignore")[:100]
         raise KimiAPIError(
-            f"upstream error {response.status_code}: {body or '<empty>'}"
+            f"upstream error {response.status_code}: {body or '<empty>'}",
+            retry_after=retry_after_seconds(response.headers)
+            if response.status_code == 429
+            else None,
         )
 
     def _update_context_from_event(
@@ -314,7 +303,7 @@ class Kimi2API:
         context: ConversationContext,
     ) -> AsyncIterator[Dict[str, Any]]:
         headers = await self._get_headers({"Content-Type": "application/connect+json"})
-        async with self._client.stream(
+        async with self._transport.stream(
             "POST",
             f"{self._base_url}{KIMI_CHAT_PATH}",
             content=content,
@@ -329,7 +318,7 @@ class Kimi2API:
 
         await self._token_manager.invalidate_and_retry()
         headers = await self._get_headers({"Content-Type": "application/connect+json"})
-        async with self._client.stream(
+        async with self._transport.stream(
             "POST",
             f"{self._base_url}{KIMI_CHAT_PATH}",
             content=content,
@@ -368,7 +357,18 @@ class Kimi2API:
                     if "done" in event:
                         break
                 break
-            except (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError, KimiAPIError) as exc:
+            except KimiAPIError as exc:
+                last_error = exc
+                if attempt == self._max_retries:
+                    raise KimiAPIError(
+                        f"chat completion failed after {self._max_retries} attempts: {exc}"
+                    ) from exc
+                await asyncio.sleep(
+                    exc.retry_after
+                    if exc.retry_after is not None
+                    else min(0.5 * attempt, 2.0)
+                )
+            except Exception as exc:
                 last_error = exc
                 if attempt == self._max_retries:
                     raise KimiAPIError(
@@ -439,7 +439,7 @@ class Kimi2API:
         return generator()
 
     async def close(self) -> None:
-        await self._client.aclose()
+        await self._transport.close()
 
     async def __aenter__(self) -> "Kimi2API":
         return self

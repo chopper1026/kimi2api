@@ -4,10 +4,14 @@ import time
 from dataclasses import dataclass, replace
 from typing import Optional
 
-import httpx
-
 from ..config import Config
-from ..kimi.protocol import FAKE_HEADERS, detect_token_type, parse_jwt
+from ..kimi.protocol import detect_token_type, parse_jwt
+from ..kimi.transport import (
+    KimiTransport,
+    build_kimi_headers,
+    load_or_create_client_identity,
+    process_session_id,
+)
 
 logger = logging.getLogger("kimi2api.token_manager")
 
@@ -27,7 +31,9 @@ class TokenManager:
     def __init__(self, raw_token: str, base_url: Optional[str] = None):
         self._base_url = (base_url or Config.KIMI_API_BASE).rstrip("/")
         self._lock = asyncio.Lock()
-        self._http = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
+        self._transport = KimiTransport(base_url=self._base_url, timeout=30.0)
+        self._device_id = load_or_create_client_identity().device_id
+        self._session_id = process_session_id()
         self._state = self._initialize(raw_token)
 
     def _initialize(self, raw_token: str) -> TokenState:
@@ -71,12 +77,16 @@ class TokenManager:
             return
         try:
             headers = {
-                **FAKE_HEADERS,
-                "Origin": self._base_url,
-                "Authorization": f"Bearer {refresh_token}",
+                **build_kimi_headers(
+                    base_url=self._base_url,
+                    token=refresh_token,
+                    device_id=self._device_id,
+                    session_id=self._session_id,
+                ),
             }
-            response = await self._http.get(
-                f"{self._base_url}{KIMI_REFRESH_PATH}",
+            response = await self._transport.request(
+                "GET",
+                KIMI_REFRESH_PATH,
                 headers=headers,
             )
             if response.status_code == 200:
@@ -110,7 +120,7 @@ class TokenManager:
             return self._state.access_token
 
     async def close(self) -> None:
-        await self._http.aclose()
+        await self._transport.close()
 
 
 _manager: Optional[TokenManager] = None

@@ -39,7 +39,9 @@ THINKING_STAGE_NAME = "STAGE_NAME_THINKING"
 
 
 class KimiAPIError(Exception):
-    pass
+    def __init__(self, message: str, *, retry_after: Optional[float] = None):
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 def generate_device_id() -> str:

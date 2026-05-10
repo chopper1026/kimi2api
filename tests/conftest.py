@@ -14,6 +14,9 @@ from app.main import create_app
 CONFIG_FIELDS = (
     "KIMI_TOKEN",
     "KIMI_API_BASE",
+    "KIMI_ACCEPT_LANGUAGE",
+    "KIMI_MAX_CONCURRENCY",
+    "KIMI_MIN_REQUEST_INTERVAL",
     "TIMEOUT",
     "DEFAULT_MODEL",
     "OPENAI_API_KEY",

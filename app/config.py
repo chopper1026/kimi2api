@@ -46,6 +46,9 @@ def _request_log_body_limit() -> int:
 class Config:
     KIMI_TOKEN: str = ""
     KIMI_API_BASE: str = "https://www.kimi.com"
+    KIMI_ACCEPT_LANGUAGE: str = "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7"
+    KIMI_MAX_CONCURRENCY: int = 2
+    KIMI_MIN_REQUEST_INTERVAL: float = 0.5
     TIMEOUT: int = 120
     DEFAULT_MODEL: str = ""
     OPENAI_API_KEY: str = ""
@@ -64,6 +67,12 @@ class Config:
     def load(cls) -> None:
         cls.KIMI_TOKEN = os.getenv("KIMI_TOKEN", "")
         cls.KIMI_API_BASE = os.getenv("KIMI_API_BASE", "https://www.kimi.com")
+        cls.KIMI_ACCEPT_LANGUAGE = os.getenv(
+            "KIMI_ACCEPT_LANGUAGE",
+            "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+        )
+        cls.KIMI_MAX_CONCURRENCY = max(int(os.getenv("KIMI_MAX_CONCURRENCY", "2")), 1)
+        cls.KIMI_MIN_REQUEST_INTERVAL = max(float(os.getenv("KIMI_MIN_REQUEST_INTERVAL", "0.5")), 0.0)
         cls.TIMEOUT = int(os.getenv("TIMEOUT", "120"))
         cls.DEFAULT_MODEL = os.getenv("MODEL", "")
         cls.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")

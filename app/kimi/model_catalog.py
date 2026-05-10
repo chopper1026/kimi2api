@@ -3,11 +3,15 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-import httpx
-
 from ..config import Config
 from ..core.token_manager import get_token_manager
-from .protocol import FAKE_HEADERS, KimiAPIError
+from .protocol import KimiAPIError
+from .transport import (
+    KimiTransport,
+    build_kimi_headers,
+    load_or_create_client_identity,
+    process_session_id,
+)
 
 KIMI_AVAILABLE_MODELS_PATH = (
     "/apiv2/kimi.gateway.config.v1.ConfigService/GetAvailableModels"
@@ -175,19 +179,22 @@ async def _optional_access_token() -> Optional[str]:
 async def fetch_model_catalog(base_url: Optional[str] = None) -> KimiModelCatalog:
     resolved_base_url = (base_url or Config.KIMI_API_BASE).rstrip("/")
     token = await _optional_access_token()
-    headers = {
-        **FAKE_HEADERS,
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Origin": resolved_base_url,
-        "X-Msh-Platform": "web",
-    }
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+    identity = load_or_create_client_identity()
+    headers = build_kimi_headers(
+        base_url=resolved_base_url,
+        token=token,
+        device_id=identity.device_id,
+        session_id=process_session_id(),
+        extra={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        },
+    )
 
-    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-        response = await client.post(
-            f"{resolved_base_url}{KIMI_AVAILABLE_MODELS_PATH}",
+    async with KimiTransport(base_url=resolved_base_url, timeout=15.0) as transport:
+        response = await transport.request(
+            "POST",
+            KIMI_AVAILABLE_MODELS_PATH,
             json={},
             headers=headers,
         )

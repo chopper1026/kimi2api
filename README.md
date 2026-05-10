@@ -109,6 +109,9 @@ docker compose up -d
 | --- | --- | --- | --- |
 | `KIMI_TOKEN` | 否 | 空 | Kimi 认证 token，支持 refresh token 和 JWT access token；为空时可在管理面板保存 |
 | `KIMI_API_BASE` | 否 | `https://www.kimi.com` | Kimi Web 服务地址 |
+| `KIMI_ACCEPT_LANGUAGE` | 否 | `zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7` | Kimi Web 出站请求语言偏好 |
+| `KIMI_MAX_CONCURRENCY` | 否 | `2` | 同一进程内 Kimi Web 出站请求最大并发数 |
+| `KIMI_MIN_REQUEST_INTERVAL` | 否 | `0.5` | 同一进程内 Kimi Web 出站请求最小启动间隔，单位秒 |
 | `TIMEOUT` | 否 | `120` | 请求超时时间，单位秒 |
 | `MODEL` | 否 | 空 | 默认模型；为空时使用 Kimi Web 模型目录的默认项，填写时必须是 `/v1/models` 返回的模型 ID |
 | `OPENAI_API_KEY` | 否 | 空 | 本服务对外暴露的默认 API Key；为空时需先在管理面板创建 Key，否则 `/v1/*` 全部拒绝访问 |
