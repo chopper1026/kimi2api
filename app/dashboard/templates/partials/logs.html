@@ -1,7 +1,9 @@
 <div class="space-y-4">
     <div class="flex items-center justify-between">
         <h2 class="text-lg font-semibold">请求日志</h2>
-        <span class="text-gray-500 text-sm">最近 {{ logs | length }} 条</span>
+        <span class="text-gray-500 text-sm">
+            共 {{ pagination.total }} 条，第 {{ pagination.page }} / {{ pagination.page_count }} 页
+        </span>
     </div>
 
     <form method="GET" action="/admin/logs"
@@ -84,5 +86,36 @@
             {% endif %}
             </tbody>
         </table>
+    </div>
+
+    <div class="flex flex-col gap-3 text-sm text-gray-400 md:flex-row md:items-center md:justify-between">
+        <div>
+            显示第 {{ pagination.start_index }}-{{ pagination.end_index }} 条，每页 {{ pagination.page_size }} 条
+        </div>
+        <div class="flex items-center gap-2">
+            {% if pagination.has_prev %}
+            <a href="/admin/logs{{ pagination.first_url }}"
+               hx-get="/admin/logs{{ pagination.first_url }}" hx-target="#content" hx-push-url="true"
+               class="px-3 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">首页</a>
+            <a href="/admin/logs{{ pagination.prev_url }}"
+               hx-get="/admin/logs{{ pagination.prev_url }}" hx-target="#content" hx-push-url="true"
+               class="px-3 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">上一页</a>
+            {% else %}
+            <span class="px-3 py-2 rounded-lg bg-gray-900 text-gray-600">首页</span>
+            <span class="px-3 py-2 rounded-lg bg-gray-900 text-gray-600">上一页</span>
+            {% endif %}
+
+            {% if pagination.has_next %}
+            <a href="/admin/logs{{ pagination.next_url }}"
+               hx-get="/admin/logs{{ pagination.next_url }}" hx-target="#content" hx-push-url="true"
+               class="px-3 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">下一页</a>
+            <a href="/admin/logs{{ pagination.last_url }}"
+               hx-get="/admin/logs{{ pagination.last_url }}" hx-target="#content" hx-push-url="true"
+               class="px-3 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">末页</a>
+            {% else %}
+            <span class="px-3 py-2 rounded-lg bg-gray-900 text-gray-600">下一页</span>
+            <span class="px-3 py-2 rounded-lg bg-gray-900 text-gray-600">末页</span>
+            {% endif %}
+        </div>
     </div>
 </div>

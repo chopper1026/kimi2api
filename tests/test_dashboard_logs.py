@@ -93,3 +93,29 @@ def test_admin_logs_use_ms_for_short_duration(authenticated_admin_client, tmp_da
 
     assert listing.status_code == 200
     assert "42.4ms" in listing.text
+
+
+def test_admin_logs_are_paginated_twenty_per_page(authenticated_admin_client, tmp_data_dir):
+    for index in range(25):
+        _log(f"req-page-{index:02d}", timestamp=float(index), error_message="timeout")
+
+    first_page = authenticated_admin_client.get("/admin/logs", params={"q": "timeout"})
+    second_page = authenticated_admin_client.get(
+        "/admin/logs",
+        params={"q": "timeout", "page": "2"},
+    )
+
+    assert first_page.status_code == 200
+    assert "共 25 条" in first_page.text
+    assert "第 1 / 2 页" in first_page.text
+    assert "req-page-24" in first_page.text
+    assert "req-page-05" in first_page.text
+    assert "req-page-04" not in first_page.text
+    assert "page=2" in first_page.text
+    assert "q=timeout" in first_page.text
+
+    assert second_page.status_code == 200
+    assert "第 2 / 2 页" in second_page.text
+    assert "req-page-04" in second_page.text
+    assert "req-page-00" in second_page.text
+    assert "req-page-24" not in second_page.text

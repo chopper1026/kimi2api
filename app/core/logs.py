@@ -345,7 +345,63 @@ def search_logs(
     path: str = "",
     stream: str = "",
     limit: int = 200,
+    offset: int = 0,
 ) -> List[RequestLog]:
+    where, params = _log_query_parts(
+        q=q,
+        status=status,
+        model=model,
+        api_key_name=api_key_name,
+        path=path,
+        stream=stream,
+    )
+
+    sql = "SELECT * FROM request_logs"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?"
+    params.extend([max(int(limit), 1), max(int(offset), 0)])
+
+    with _connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [_row_to_entry(row) for row in rows]
+
+
+def count_logs(
+    *,
+    q: str = "",
+    status: str = "",
+    model: str = "",
+    api_key_name: str = "",
+    path: str = "",
+    stream: str = "",
+) -> int:
+    where, params = _log_query_parts(
+        q=q,
+        status=status,
+        model=model,
+        api_key_name=api_key_name,
+        path=path,
+        stream=stream,
+    )
+
+    sql = "SELECT COUNT(*) FROM request_logs"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+
+    with _connect() as conn:
+        return int(conn.execute(sql, params).fetchone()[0])
+
+
+def _log_query_parts(
+    *,
+    q: str = "",
+    status: str = "",
+    model: str = "",
+    api_key_name: str = "",
+    path: str = "",
+    stream: str = "",
+) -> Tuple[List[str], List[Any]]:
     where: List[str] = []
     params: List[Any] = []
 
@@ -378,15 +434,7 @@ def search_logs(
     elif stream_value in {"false", "0", "no", "normal"}:
         where.append("is_stream = 0")
 
-    sql = "SELECT * FROM request_logs"
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY timestamp DESC, id DESC LIMIT ?"
-    params.append(max(int(limit), 1))
-
-    with _connect() as conn:
-        rows = conn.execute(sql, params).fetchall()
-    return [_row_to_entry(row) for row in rows]
+    return where, params
 
 
 def get_recent_logs(limit: int = 100) -> List[RequestLog]:

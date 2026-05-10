@@ -21,7 +21,7 @@ from ..core.kimi_token_store import save_kimi_token
 from ..core.token_manager import get_token_manager, replace_token_manager
 from .templates import render_html, render_page, render_template
 from . import view_models
-from .view_models import dashboard_stats, key_list, log_detail, log_list, token_info
+from .view_models import dashboard_stats, key_list, log_detail, log_page, token_info
 
 
 def set_start_time(t: float) -> None:
@@ -294,10 +294,15 @@ def create_dashboard_router() -> APIRouter:
             "api_key_name": request.query_params.get("api_key_name", ""),
             "path": request.query_params.get("path", ""),
             "stream": request.query_params.get("stream", ""),
+            "page": request.query_params.get("page", "1"),
         }
+        page_data = log_page(filters)
         content = render_template(
             "partials/logs.html",
-            request=request, logs=log_list(filters), filters=filters,
+            request=request,
+            logs=page_data["logs"],
+            pagination=page_data["pagination"],
+            filters=filters,
         )
         if _is_htmx(request):
             return HTMLResponse(content)

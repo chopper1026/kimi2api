@@ -126,3 +126,28 @@ def test_request_logs_can_be_filtered(tmp_data_dir, config_override):
     )
 
     assert [entry.request_id for entry in results] == ["req-error"]
+
+
+def test_request_logs_support_offset_and_filtered_count(tmp_data_dir, config_override):
+    config_override(REQUEST_LOG_RETENTION=30)
+    for index in range(25):
+        logs.log_request(
+            _entry(
+                f"req-{index:02d}",
+                timestamp=float(index),
+                status="error" if index % 2 else "success",
+                error_message="timeout" if index % 2 else "",
+            )
+        )
+
+    first_page = logs.search_logs(limit=20)
+    second_page = logs.search_logs(limit=20, offset=20)
+
+    assert [entry.request_id for entry in first_page] == [
+        f"req-{index:02d}" for index in range(24, 4, -1)
+    ]
+    assert [entry.request_id for entry in second_page] == [
+        f"req-{index:02d}" for index in range(4, -1, -1)
+    ]
+    assert logs.count_logs() == 25
+    assert logs.count_logs(q="timeout", status="error") == 12

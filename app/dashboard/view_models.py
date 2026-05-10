@@ -11,10 +11,11 @@ except ImportError:  # pragma: no cover - Python 3.8 compatibility
 
 from ..config import Config
 from ..core.keys import list_keys, total_request_count
-from ..core.logs import RequestLog, get_log, get_recent_logs, search_logs
+from ..core.logs import RequestLog, count_logs, get_log, get_recent_logs, search_logs
 from ..core.token_manager import get_token_manager
 
 _START_TIME: float = 0.0
+LOGS_PAGE_SIZE = 20
 
 
 def set_start_time(t: float) -> None:
@@ -134,21 +135,31 @@ def _log_filters(filters: Optional[Dict[str, str]] = None) -> Dict[str, str]:
         "api_key_name": source.get("api_key_name", "").strip(),
         "path": source.get("path", "").strip(),
         "stream": source.get("stream", "").strip(),
+        "page": source.get("page", "1").strip(),
     }
 
 
-def log_list(filters: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
+def _positive_int(value: Any, default: int = 1) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(parsed, 1)
+
+
+def _log_query_params(query: Dict[str, str], page: int) -> str:
+    params = {
+        key: value
+        for key, value in query.items()
+        if key != "page" and value
+    }
+    if page > 1:
+        params["page"] = str(page)
+    return f"?{urlencode(params)}" if params else ""
+
+
+def _serialize_logs(entries: List[RequestLog]) -> List[Dict[str, Any]]:
     result = []
-    query = _log_filters(filters)
-    entries = search_logs(
-        q=query["q"],
-        status=query["status"],
-        model=query["model"],
-        api_key_name=query["api_key_name"],
-        path=query["path"],
-        stream=query["stream"],
-        limit=200,
-    )
     for log in entries:
         result.append({
             "request_id": log.request_id,
@@ -166,6 +177,56 @@ def log_list(filters: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
             "error_message": log.error_message,
         })
     return result
+
+
+def log_page(filters: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    query = _log_filters(filters)
+    requested_page = _positive_int(query["page"])
+    total = count_logs(
+        q=query["q"],
+        status=query["status"],
+        model=query["model"],
+        api_key_name=query["api_key_name"],
+        path=query["path"],
+        stream=query["stream"],
+    )
+    page_count = max((total + LOGS_PAGE_SIZE - 1) // LOGS_PAGE_SIZE, 1)
+    page = min(requested_page, page_count)
+    offset = (page - 1) * LOGS_PAGE_SIZE
+    entries = search_logs(
+        q=query["q"],
+        status=query["status"],
+        model=query["model"],
+        api_key_name=query["api_key_name"],
+        path=query["path"],
+        stream=query["stream"],
+        limit=LOGS_PAGE_SIZE,
+        offset=offset,
+    )
+    start_index = offset + 1 if total else 0
+    end_index = offset + len(entries) if total else 0
+
+    return {
+        "logs": _serialize_logs(entries),
+        "pagination": {
+            "total": total,
+            "page": page,
+            "page_count": page_count,
+            "page_size": LOGS_PAGE_SIZE,
+            "start_index": start_index,
+            "end_index": end_index,
+            "has_prev": page > 1,
+            "has_next": page < page_count,
+            "prev_url": _log_query_params(query, page - 1),
+            "next_url": _log_query_params(query, page + 1),
+            "first_url": _log_query_params(query, 1),
+            "last_url": _log_query_params(query, page_count),
+        },
+    }
+
+
+def log_list(filters: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
+    return log_page(filters)["logs"]
 
 
 def _pretty_json(value: Any) -> str:
