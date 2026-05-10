@@ -125,7 +125,7 @@ def configured_api_key(reset_key_store):
 
 @pytest.fixture
 def api_client(tmp_data_dir):
-    return TestClient(create_app())
+    return TestClient(create_app(initialize=False))
 
 
 @pytest.fixture(autouse=True)

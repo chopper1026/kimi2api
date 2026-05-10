@@ -1,13 +1,16 @@
 import json
-import logging
 import os
 import re
 import stat
 from unittest.mock import Mock
 
+from fastapi.testclient import TestClient
+
+from app.config import Config
+from app.core import auth
 from app.core.token_manager import TokenManager
 from app.core.kimi_token_store import load_configured_kimi_token, save_kimi_token
-from app.main import main
+from app.main import create_app, main
 
 
 def test_saved_token_takes_precedence_over_env_token(admin_config, config_override):
@@ -41,11 +44,10 @@ def test_token_manager_exposes_state_snapshot():
         asyncio.run(manager.close())
 
 
-def test_main_starts_without_kimi_token(
+def test_main_starts_uvicorn_with_loaded_server_config(
     tmp_data_dir,
     token_manager_store,
     monkeypatch,
-    caplog,
 ):
     env = {
         "KIMI_TOKEN": "",
@@ -55,19 +57,66 @@ def test_main_starts_without_kimi_token(
         "SECURE_COOKIES": "false",
         "OPENAI_API_KEY": "",
         "HOST": "127.0.0.1",
-        "PORT": "8000",
+        "PORT": "8123",
+        "RELOAD": "true",
     }
     for key, value in env.items():
         monkeypatch.setenv(key, value)
     run = Mock()
     monkeypatch.setattr("app.main.uvicorn.run", run)
-    caplog.set_level(logging.WARNING, logger="kimi2api.main")
 
     main()
 
-    run.assert_called_once()
+    run.assert_called_once_with(
+        "app.main:create_app",
+        host="127.0.0.1",
+        port=8123,
+        reload=True,
+        factory=True,
+    )
     assert token_manager_store.get() is None
-    assert "Kimi token is not configured" in caplog.text
+
+
+def test_create_app_initializes_runtime_from_environment(
+    tmp_data_dir,
+    reset_key_store,
+    token_manager_store,
+    monkeypatch,
+):
+    monkeypatch.setattr(auth, "_admin_password", None)
+    monkeypatch.setattr(auth, "_serializer", None)
+    monkeypatch.setenv("KIMI_TOKEN", "")
+    monkeypatch.setenv("ADMIN_PASSWORD", "admin-password")
+    monkeypatch.setenv("SESSION_SECRET", "test-session-secret")
+    monkeypatch.setenv("DATA_DIR", str(tmp_data_dir))
+    monkeypatch.setenv("SECURE_COOKIES", "false")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-env-test")
+
+    client = TestClient(create_app())
+
+    login = client.get("/admin/login")
+    models = client.get(
+        "/v1/models",
+        headers={"Authorization": "Bearer sk-env-test"},
+    )
+
+    assert login.status_code == 200
+    assert "Dashboard disabled" not in login.text
+    assert models.status_code == 200
+    assert token_manager_store.get() is None
+
+
+def test_create_app_can_skip_runtime_initialization(
+    tmp_data_dir,
+    config_override,
+    monkeypatch,
+):
+    monkeypatch.setenv("PORT", "9999")
+    config_override(PORT=1234, DATA_DIR=str(tmp_data_dir))
+
+    TestClient(create_app(initialize=False))
+
+    assert Config.PORT == 1234
 
 
 def test_admin_can_save_token_and_replace_runtime_manager(

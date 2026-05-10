@@ -1,4 +1,3 @@
-import logging
 import os
 import json
 import time
@@ -10,20 +9,16 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from .bootstrap import initialize_runtime, load_runtime_config
 from .config import Config
 from .kimi import KimiAPIError
-from .core.keys import get_key as _get_key, init_key_store
+from .core.keys import get_key as _get_key
 from .core.logs import RequestLog, log_request
-from .core.auth import init_auth
-from .core.kimi_token_store import load_configured_kimi_token
-from .core.token_manager import init_token_manager
 
 from .api.errors import _json_error
 from .api.models import SERVER_NAME
 from .api.routes import router as api_router
 from .dashboard.routes import create_dashboard_router
-
-logger = logging.getLogger("kimi2api.main")
 
 
 def _request_api_key_name(request: Request) -> str:
@@ -197,7 +192,11 @@ def _wrap_streaming_log(
     response.body_iterator = logging_iterator()
 
 
-def create_app() -> FastAPI:
+def create_app(initialize: bool = True) -> FastAPI:
+    if initialize:
+        load_runtime_config()
+        initialize_runtime()
+
     app = FastAPI(
         title=SERVER_NAME,
         version="1.2.0",
@@ -309,23 +308,8 @@ def create_app() -> FastAPI:
 
 
 def main() -> None:
-    """Application entrypoint: load config, initialize subsystems, run uvicorn."""
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    Config.load()
-
-    raw_token = load_configured_kimi_token()
-    if raw_token:
-        init_token_manager(raw_token)
-    else:
-        logger.warning("Kimi token is not configured; set it in /admin/token")
-
-    init_key_store()
-    init_auth()
-
-    from .dashboard.routes import set_start_time
-    set_start_time(time.time())
+    """Application entrypoint: load server config and run uvicorn."""
+    load_runtime_config()
 
     host = Config.HOST
     port = Config.PORT
