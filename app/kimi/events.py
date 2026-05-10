@@ -1,6 +1,8 @@
 import json
 from typing import Any, AsyncIterator, Dict, Optional
 
+import httpx
+
 from .protocol import ConversationContext, KimiAPIError, THINKING_STAGE_NAME
 
 
@@ -77,40 +79,46 @@ async def iter_grpc_events(
     context: ConversationContext,
 ) -> AsyncIterator[Dict[str, Any]]:
     buffer = bytearray()
-    async for chunk in response.aiter_bytes():
-        buffer.extend(chunk)
-        offset = 0
+    try:
+        async for chunk in response.aiter_bytes():
+            buffer.extend(chunk)
+            offset = 0
 
-        while offset + 5 <= len(buffer):
-            flag = buffer[offset]
-            length = int.from_bytes(buffer[offset + 1 : offset + 5], "big")
-            frame_end = offset + 5 + length
-            if frame_end > len(buffer):
-                break
+            while offset + 5 <= len(buffer):
+                flag = buffer[offset]
+                length = int.from_bytes(buffer[offset + 1 : offset + 5], "big")
+                frame_end = offset + 5 + length
+                if frame_end > len(buffer):
+                    break
 
-            payload = bytes(buffer[offset + 5 : frame_end])
-            offset = frame_end
+                payload = bytes(buffer[offset + 5 : frame_end])
+                offset = frame_end
 
-            if flag & 0x80:
-                continue
+                if flag & 0x80:
+                    continue
 
-            text = payload.decode("utf-8", errors="ignore").strip()
-            if not text:
-                continue
+                text = payload.decode("utf-8", errors="ignore").strip()
+                if not text:
+                    continue
 
-            try:
-                event = json.loads(text)
-            except json.JSONDecodeError:
-                continue
+                try:
+                    event = json.loads(text)
+                except json.JSONDecodeError:
+                    continue
 
-            if event.get("error"):
-                error = event["error"]
-                raise KimiAPIError(
-                    error.get("message") or json.dumps(error, ensure_ascii=False)
-                )
+                if event.get("error"):
+                    error = event["error"]
+                    raise KimiAPIError(
+                        error.get("message") or json.dumps(error, ensure_ascii=False)
+                    )
 
-            update_context_from_event(context, event)
-            yield event
+                update_context_from_event(context, event)
+                yield event
 
-        if offset:
-            del buffer[:offset]
+            if offset:
+                del buffer[:offset]
+    except httpx.HTTPError as exc:
+        raise KimiAPIError(
+            f"Kimi upstream stream interrupted: {exc}",
+            upstream_error_type="stream_interrupted",
+        ) from exc

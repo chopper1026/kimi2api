@@ -1,8 +1,11 @@
 import json
 
+import httpx
+import pytest
+
 from app.kimi.client import Kimi2API
 from app.kimi.model_catalog import KimiModelSpec
-from app.kimi.protocol import ConversationContext
+from app.kimi.protocol import ConversationContext, KimiAPIError
 
 
 class FakeGrpcResponse:
@@ -12,6 +15,15 @@ class FakeGrpcResponse:
     async def aiter_bytes(self):
         for payload in self._payloads:
             yield payload
+
+
+class BrokenGrpcResponse:
+    async def aiter_bytes(self):
+        raise httpx.RemoteProtocolError(
+            "peer closed connection without sending complete message body "
+            "(incomplete chunked read)"
+        )
+        yield b""
 
 
 def grpc_frame(payload: bytes, flag: int = 0) -> bytes:
@@ -32,6 +44,21 @@ async def test_iter_grpc_events_skips_non_json_frames():
     ]
 
     assert events == [{"done": {}}]
+
+
+async def test_iter_grpc_events_wraps_incomplete_chunked_read_as_upstream_error():
+    client = Kimi2API.__new__(Kimi2API)
+    context = ConversationContext(request_conversation_id="local")
+    response = BrokenGrpcResponse()
+
+    with pytest.raises(KimiAPIError) as exc_info:
+        [
+            event
+            async for event in client._iter_grpc_events(response, context)
+        ]
+
+    assert "Kimi upstream stream interrupted" in str(exc_info.value)
+    assert exc_info.value.upstream_error_type == "stream_interrupted"
 
 
 def test_unflagged_text_after_thinking_is_answer_content():
