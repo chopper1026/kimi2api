@@ -1,6 +1,7 @@
 import json
 
 from app.kimi.client import Kimi2API
+from app.kimi.model_catalog import KimiModelSpec
 from app.kimi.protocol import ConversationContext
 
 
@@ -61,3 +62,50 @@ def test_explicit_thinking_text_remains_reasoning_content():
 
     assert delta["content"] is None
     assert delta["reasoning_content"] == "这里是推理"
+
+
+def test_build_chat_payload_uses_resolved_model_spec_fields():
+    client = Kimi2API.__new__(Kimi2API)
+    spec = KimiModelSpec(
+        id="kimi-k2.6-agent",
+        display_name="K2.6 Agent",
+        scenario="SCENARIO_OK_COMPUTER",
+        thinking=False,
+        kimi_plus_id="ok-computer",
+        agent_mode="TYPE_NORMAL",
+    )
+
+    payload = client._build_chat_payload(
+        model_spec=spec,
+        messages=[{"role": "user", "content": "hi"}],
+        context=ConversationContext(request_conversation_id="local"),
+        enable_web_search=False,
+    )
+
+    assert payload["scenario"] == "SCENARIO_OK_COMPUTER"
+    assert payload["message"]["scenario"] == "SCENARIO_OK_COMPUTER"
+    assert payload["options"]["thinking"] is False
+    assert payload["kimiplusId"] == "ok-computer"
+    assert payload["agentMode"] == "TYPE_NORMAL"
+
+
+def test_build_chat_payload_preserves_thinking_model_flag():
+    client = Kimi2API.__new__(Kimi2API)
+    spec = KimiModelSpec(
+        id="kimi-k2.6-thinking",
+        display_name="K2.6 Thinking",
+        scenario="SCENARIO_K2D5",
+        thinking=True,
+    )
+
+    payload = client._build_chat_payload(
+        model_spec=spec,
+        messages=[{"role": "user", "content": "hi"}],
+        context=ConversationContext(request_conversation_id="local"),
+        enable_web_search=False,
+    )
+
+    assert payload["scenario"] == "SCENARIO_K2D5"
+    assert payload["options"]["thinking"] is True
+    assert "kimiplusId" not in payload
+    assert "agentMode" not in payload

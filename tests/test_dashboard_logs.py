@@ -11,13 +11,13 @@ def _log(request_id: str, **overrides):
         "client_ip": "127.0.0.1",
         "user_agent": "pytest",
         "api_key_name": "Key 1",
-        "model": "kimi-2.6-thinking",
+        "model": "kimi-k2.6-thinking",
         "status": "error",
         "status_code": 502,
         "duration_ms": 2345.6,
         "is_stream": True,
         "request_headers": {"authorization": "Bearer sk-secret", "content-type": "application/json"},
-        "request_body": '{"model":"kimi-2.6-thinking","messages":[{"role":"user","content":"你是什么大模型"}]}',
+        "request_body": '{"model":"kimi-k2.6-thinking","messages":[{"role":"user","content":"你是什么大模型"}]}',
         "response_headers": {"content-type": "text/event-stream"},
         "response_body": 'data: {"error":{"message":"upstream timeout"}}\n\n',
         "raw_stream_body": 'data: {"error":{"message":"upstream timeout"}}\n\n',
@@ -63,7 +63,7 @@ def test_admin_log_detail_renders_request_body_as_collapsible_json_without_respo
     _log(
         "req-json-body",
         request_body=(
-            '{"model":"kimi-2.6-thinking","messages":[{"role":"user",'
+            '{"model":"kimi-k2.6-thinking","messages":[{"role":"user",'
             '"content":"找字段","metadata":{"trace_id":"trace-123"}}],'
             '"enable_thinking":true}'
         ),

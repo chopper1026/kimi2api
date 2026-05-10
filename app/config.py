@@ -5,7 +5,7 @@ class Config:
     KIMI_TOKEN: str = ""
     KIMI_API_BASE: str = "https://www.kimi.com"
     TIMEOUT: int = 120
-    DEFAULT_MODEL: str = "kimi-k2.5"
+    DEFAULT_MODEL: str = ""
     OPENAI_API_KEY: str = ""
     ADMIN_PASSWORD: str = ""
     SESSION_SECRET: str = ""
@@ -23,7 +23,7 @@ class Config:
         cls.KIMI_TOKEN = os.getenv("KIMI_TOKEN", "")
         cls.KIMI_API_BASE = os.getenv("KIMI_API_BASE", "https://www.kimi.com")
         cls.TIMEOUT = int(os.getenv("TIMEOUT", "120"))
-        cls.DEFAULT_MODEL = os.getenv("MODEL", "kimi-k2.5")
+        cls.DEFAULT_MODEL = os.getenv("MODEL", "")
         cls.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
         cls.ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
         cls.SESSION_SECRET = os.getenv("SESSION_SECRET") or ""

@@ -1,100 +1,73 @@
 from typing import Any, Dict, Optional
 
 from ..config import Config
+from ..kimi.model_catalog import KimiModelCatalog, KimiModelSpec, get_model_catalog
 
 SERVER_NAME = "Kimi2API"
-DEFAULT_BASE_MODEL = "kimi-k2.5"
-BASE_MODELS = ["kimi-k2.5", "kimi-k2"]
-DEFAULT_MODELS = [
-    "kimi-k2.5",
-    "kimi-k2.5-thinking",
-    "kimi-k2.5-search",
-    "kimi-k2.5-thinking-search",
-    "kimi-2.6-fast",
-    "kimi-2.6-thinking",
-    "kimi-2.6-search",
-    "kimi-2.6-thinking-search",
-    "kimi-k2",
-    "kimi-k2-thinking",
-    "kimi-k2-search",
-    "kimi-k2-thinking-search",
-    "kimi-thinking",
-    "kimi-search",
-    "kimi-thinking-search",
-]
 
 
-def _parse_model_alias(model: str) -> Dict[str, Any]:
-    normalized_model = (model or DEFAULT_BASE_MODEL).strip().lower()
-    enable_thinking = False
-    enable_web_search = False
+class ModelResolutionError(ValueError):
+    pass
 
-    alias_map = {
-        "kimi-thinking": (DEFAULT_BASE_MODEL, True, False),
-        "kimi-search": (DEFAULT_BASE_MODEL, False, True),
-        "kimi-thinking-search": (DEFAULT_BASE_MODEL, True, True),
-        "kimi-search-thinking": (DEFAULT_BASE_MODEL, True, True),
-        "kimi-2.6-fast": ("kimi-2.6-fast", False, False),
-        "kimi-2.6-thinking": ("kimi-2.6-thinking", True, False),
-        "kimi-2.6-search": ("kimi-2.6-search", False, True),
-        "kimi-2.6-thinking-search": ("kimi-2.6-thinking-search", True, True),
-        "kimi-2.6-search-thinking": ("kimi-2.6-thinking-search", True, True),
-    }
-    if normalized_model in alias_map:
-        base_model, enable_thinking, enable_web_search = alias_map[normalized_model]
-        return {
-            "request_model": normalized_model,
-            "base_model": base_model,
-            "enable_thinking": enable_thinking,
-            "enable_web_search": enable_web_search,
-        }
 
-    model_parts = [part for part in normalized_model.split("-") if part]
-    feature_parts = {"thinking", "think", "reasoning", "search"}
-    suffixes = []
-    while model_parts and model_parts[-1] in feature_parts:
-        suffixes.append(model_parts.pop())
-
-    base_model = "-".join(model_parts) if model_parts else DEFAULT_BASE_MODEL
-    if base_model not in BASE_MODELS:
-        base_model = normalized_model
-        suffixes = []
-
-    for suffix in suffixes:
-        if suffix in {"thinking", "think", "reasoning"}:
-            enable_thinking = True
-        if suffix == "search":
-            enable_web_search = True
-
+def _model_to_dict(model: KimiModelSpec, created: int) -> Dict[str, Any]:
     return {
-        "request_model": normalized_model,
-        "base_model": base_model,
-        "enable_thinking": enable_thinking,
-        "enable_web_search": enable_web_search,
+        "id": model.id,
+        "object": "model",
+        "created": created,
+        "owned_by": "moonshot",
+        "display_name": model.display_name,
+        "description": model.description,
+        "scenario": model.scenario,
+        "thinking": model.thinking,
+        "kimi_plus_id": model.kimi_plus_id,
+        "agent_mode": model.agent_mode,
     }
 
 
-def _resolve_model(request_model: Optional[str]) -> Dict[str, Any]:
-    raw_model = request_model or Config.DEFAULT_MODEL
-    return _parse_model_alias(raw_model)
+def _requested_model(payload: Dict[str, Any], catalog: KimiModelCatalog) -> str:
+    request_model = payload.get("model")
+    if isinstance(request_model, str) and request_model.strip():
+        return request_model.strip().lower()
+    if Config.DEFAULT_MODEL.strip():
+        return Config.DEFAULT_MODEL.strip().lower()
+    return catalog.default_model_id
 
 
-def _extract_features(model_info: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
-    enable_thinking = bool(payload.get("enable_thinking") or payload.get("reasoning"))
+def _explicit_thinking(payload: Dict[str, Any]) -> Optional[bool]:
+    if "enable_thinking" in payload and payload.get("enable_thinking") is not None:
+        return bool(payload.get("enable_thinking"))
+    if "reasoning" in payload and payload.get("reasoning") is not None:
+        return bool(payload.get("reasoning"))
+    return None
+
+
+def _extract_features(model: KimiModelSpec, payload: Dict[str, Any]) -> Dict[str, Any]:
+    requested_thinking = _explicit_thinking(payload)
+    if requested_thinking is not None and requested_thinking != model.thinking:
+        raise ModelResolutionError(
+            "`enable_thinking`/`reasoning` conflicts with the selected model"
+        )
+
     enable_web_search = bool(
         payload.get("enable_web_search")
         or payload.get("web_search")
         or payload.get("search")
     )
 
-    if model_info.get("enable_thinking"):
-        enable_thinking = True
-    if model_info.get("enable_web_search"):
-        enable_web_search = True
-
     return {
-        "model": model_info["base_model"],
-        "request_model": model_info["request_model"],
-        "enable_thinking": enable_thinking,
+        "model": model.id,
+        "request_model": model.id,
+        "model_spec": model,
+        "enable_thinking": model.thinking,
         "enable_web_search": enable_web_search,
     }
+
+
+async def _resolve_model(payload: Dict[str, Any]) -> Dict[str, Any]:
+    catalog = await get_model_catalog()
+    requested_model = _requested_model(payload, catalog)
+    model = catalog.by_id(requested_model)
+    if model is None:
+        raise ModelResolutionError(f"Model `{requested_model}` is not available")
+    return _extract_features(model, payload)

@@ -110,7 +110,7 @@ docker compose up -d
 | `KIMI_TOKEN` | 否 | 空 | Kimi 认证 token，支持 refresh token 和 JWT access token；为空时可在管理面板保存 |
 | `KIMI_API_BASE` | 否 | `https://www.kimi.com` | Kimi Web 服务地址 |
 | `TIMEOUT` | 否 | `120` | 请求超时时间，单位秒 |
-| `MODEL` | 否 | `kimi-k2.5` | 默认模型；`.env.example` 中示例为 `kimi-k2.6` |
+| `MODEL` | 否 | 空 | 默认模型；为空时使用 Kimi Web 模型目录的默认项，填写时必须是 `/v1/models` 返回的模型 ID |
 | `OPENAI_API_KEY` | 否 | 空 | 本服务对外暴露的默认 API Key；为空时需先在管理面板创建 Key，否则 `/v1/*` 全部拒绝访问 |
 | `ADMIN_PASSWORD` | 是 | 空 | 管理面板密码；为空时管理面板不可用 |
 | `SESSION_SECRET` | 否 | 自动生成 | 管理面板 Cookie 签名密钥；为空时写入 `data/.session_secret` |
@@ -146,7 +146,7 @@ client = OpenAI(
 )
 
 resp = client.chat.completions.create(
-    model="kimi-k2.5",
+    model="kimi-k2.6",
     messages=[
         {"role": "system", "content": "你是一个有帮助的助手。"},
         {"role": "user", "content": "请用一句话介绍 Kimi2API。"},
@@ -163,7 +163,7 @@ curl http://127.0.0.1:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your_api_key_here" \
   -d '{
-    "model": "kimi-k2.5",
+    "model": "kimi-k2.6",
     "messages": [
       {"role": "user", "content": "你好"}
     ]
@@ -177,7 +177,7 @@ curl http://127.0.0.1:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your_api_key_here" \
   -d '{
-    "model": "kimi-k2.5-thinking",
+    "model": "kimi-k2.6-thinking",
     "stream": true,
     "messages": [
       {"role": "user", "content": "解释一下快速排序"}
@@ -192,7 +192,8 @@ curl http://127.0.0.1:8000/v1/responses \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your_api_key_here" \
   -d '{
-    "model": "kimi-k2.5-search",
+    "model": "kimi-k2.6",
+    "enable_web_search": true,
     "input": "今天有什么值得关注的 AI 新闻？"
   }'
 ```
@@ -203,7 +204,7 @@ curl http://127.0.0.1:8000/v1/responses \
 
 ```json
 {
-  "model": "kimi-k2.5",
+  "model": "kimi-k2.6",
   "conversation_id": "your-conversation-id",
   "messages": [
     {"role": "user", "content": "继续上一个话题"}
@@ -213,29 +214,18 @@ curl http://127.0.0.1:8000/v1/responses \
 
 ## 模型和功能开关
 
-当前 `/v1/models` 会返回以下模型别名：
+当前 `/v1/models` 会从 Kimi Web 的 `GetAvailableModels` 动态获取真实可用模型。模型 ID 会按 Kimi Web 返回的实际工作配置生成，例如：
 
-- `kimi-k2.5`
-- `kimi-k2.5-thinking`
-- `kimi-k2.5-search`
-- `kimi-k2.5-thinking-search`
-- `kimi-2.6-fast`
-- `kimi-2.6-thinking`
-- `kimi-2.6-search`
-- `kimi-2.6-thinking-search`
-- `kimi-k2`
-- `kimi-k2-thinking`
-- `kimi-k2-search`
-- `kimi-k2-thinking-search`
-- `kimi-thinking`
-- `kimi-search`
-- `kimi-thinking-search`
+- `kimi-k2.6`
+- `kimi-k2.6-thinking`
+- `kimi-k2.6-agent`
+- `kimi-k2.6-agent-swarm`
 
-也可以通过请求字段显式开启能力：
+`enable_thinking` / `reasoning` 只能与所选模型的思考能力保持一致；例如 `kimi-k2.6` 搭配 `enable_thinking: true` 会返回参数错误。搜索仍是工具开关，不再作为模型别名：
 
 ```json
 {
-  "enable_thinking": true,
+  "model": "kimi-k2.6",
   "enable_web_search": true
 }
 ```

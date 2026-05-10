@@ -11,7 +11,7 @@ def _entry(request_id: str, **overrides):
         "client_ip": "127.0.0.1",
         "user_agent": "pytest",
         "api_key_name": "Key 1",
-        "model": "kimi-2.6-thinking",
+        "model": "kimi-k2.6-thinking",
         "status": "success",
         "status_code": 200,
         "duration_ms": 12.3,
@@ -118,7 +118,7 @@ def test_request_logs_can_be_filtered(tmp_data_dir, config_override):
     results = logs.search_logs(
         q="timeout",
         status="error",
-        model="kimi-2.6-thinking",
+        model="kimi-k2.6-thinking",
         api_key_name="Key 1",
         path="/v1/chat/completions",
         stream="true",

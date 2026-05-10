@@ -17,7 +17,7 @@ def test_streaming_chat_reports_missing_kimi_token_as_sse_error(
         "/v1/chat/completions",
         headers={"Authorization": f"Bearer {configured_api_key.key}"},
         json={
-            "model": "kimi-2.6-thinking",
+            "model": "kimi-k2.6-thinking",
             "stream": True,
             "messages": [{"role": "user", "content": "hi"}],
         },
@@ -50,7 +50,7 @@ def test_streaming_responses_reports_missing_kimi_token_as_sse_error(
         "/v1/responses",
         headers={"Authorization": f"Bearer {configured_api_key.key}"},
         json={
-            "model": "kimi-2.6-thinking",
+            "model": "kimi-k2.6-thinking",
             "stream": True,
             "input": "hi",
         },

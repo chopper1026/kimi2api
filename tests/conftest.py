@@ -128,6 +128,68 @@ def api_client(tmp_data_dir):
     return TestClient(create_app())
 
 
+@pytest.fixture(autouse=True)
+def sample_model_catalog(monkeypatch):
+    try:
+        from app.kimi.model_catalog import KimiModelCatalog, KimiModelSpec
+    except ModuleNotFoundError:
+        yield
+        return
+
+    catalog = KimiModelCatalog(
+        models=[
+            KimiModelSpec(
+                id="kimi-k2.6",
+                display_name="K2.6 Instant",
+                scenario="SCENARIO_K2D5",
+                thinking=False,
+                description="Quick response",
+            ),
+            KimiModelSpec(
+                id="kimi-k2.6-thinking",
+                display_name="K2.6 Thinking",
+                scenario="SCENARIO_K2D5",
+                thinking=True,
+                description="Deep thinking for complex questions",
+            ),
+            KimiModelSpec(
+                id="kimi-k2.6-agent",
+                display_name="K2.6 Agent",
+                scenario="SCENARIO_OK_COMPUTER",
+                thinking=False,
+                kimi_plus_id="ok-computer",
+                agent_mode="TYPE_NORMAL",
+                description="Research, slides, websites, docs, sheets",
+            ),
+            KimiModelSpec(
+                id="kimi-k2.6-agent-swarm",
+                display_name="K2.6 Agent Swarm",
+                scenario="SCENARIO_OK_COMPUTER",
+                thinking=False,
+                kimi_plus_id="ok-computer",
+                agent_mode="TYPE_ULTRA",
+                description="Large-scale search, long-form writing, batch tasks",
+            ),
+        ],
+        default_model_id="kimi-k2.6",
+    )
+
+    async def fake_get_model_catalog(*_args, **_kwargs):
+        return catalog
+
+    monkeypatch.setattr(
+        "app.api.models.get_model_catalog",
+        fake_get_model_catalog,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.get_model_catalog",
+        fake_get_model_catalog,
+        raising=False,
+    )
+    yield
+
+
 @pytest.fixture
 def authenticated_admin_client(api_client, admin_config):
     response = api_client.post(

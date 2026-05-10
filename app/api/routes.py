@@ -16,9 +16,10 @@ from .converters import (
 )
 from .errors import _json_error
 from .models import (
-    DEFAULT_MODELS,
-    _extract_features,
+    ModelResolutionError,
+    _model_to_dict,
     _resolve_model,
+    get_model_catalog,
 )
 from .streaming import (
     _create_streaming_chat_response,
@@ -44,16 +45,12 @@ async def healthz() -> Dict[str, str]:
 @router.get("/v1/models", dependencies=[Depends(verify_api_key)])
 async def list_models() -> Dict[str, Any]:
     now = int(time.time())
+    catalog = await get_model_catalog()
     return {
         "object": "list",
         "data": [
-            {
-                "id": model_id,
-                "object": "model",
-                "created": now,
-                "owned_by": "moonshot",
-            }
-            for model_id in DEFAULT_MODELS
+            _model_to_dict(model, now)
+            for model in catalog.models
         ],
     }
 
@@ -61,12 +58,17 @@ async def list_models() -> Dict[str, Any]:
 @router.get("/v1/models/{model_id}", dependencies=[Depends(verify_api_key)])
 async def retrieve_model(model_id: str) -> Dict[str, Any]:
     now = int(time.time())
-    return {
-        "id": model_id,
-        "object": "model",
-        "created": now,
-        "owned_by": "moonshot",
-    }
+    catalog = await get_model_catalog()
+    model = catalog.by_id(model_id)
+    if model is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": f"Model `{model_id}` is not available",
+                "type": "invalid_request_error",
+            },
+        )
+    return _model_to_dict(model, now)
 
 
 # ---------------------------------------------------------------------------
@@ -87,8 +89,13 @@ async def create_chat_completion(request: Request) -> Any:
             detail={"message": "`messages` is required", "type": "invalid_request_error"},
         )
 
-    model_info = _resolve_model(payload.get("model"))
-    features = _extract_features(model_info, payload)
+    try:
+        features = await _resolve_model(payload)
+    except ModelResolutionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": str(exc), "type": "invalid_request_error"},
+        ) from exc
     request.state.request_model = features["request_model"]
     conversation_id = _extract_conversation_id(payload)
     stream = bool(payload.get("stream", False))
@@ -98,10 +105,10 @@ async def create_chat_completion(request: Request) -> Any:
             _create_streaming_chat_response(
                 request=request,
                 model=features["model"],
+                model_spec=features["model_spec"],
                 response_model=features["request_model"],
                 messages=messages,
                 conversation_id=conversation_id,
-                enable_thinking=features["enable_thinking"],
                 enable_web_search=features["enable_web_search"],
             ),
             media_type="text/event-stream",
@@ -115,10 +122,10 @@ async def create_chat_completion(request: Request) -> Any:
     async with Kimi2API() as client:
         result = await client.chat.completions.create(
             model=features["model"],
+            model_spec=features["model_spec"],
             messages=messages,
             stream=False,
             conversation_id=conversation_id,
-            enable_thinking=features["enable_thinking"],
             enable_web_search=features["enable_web_search"],
         )
         result.model = features["request_model"]
@@ -139,17 +146,22 @@ async def create_completion(request: Request) -> Dict[str, Any]:
             detail={"message": "`prompt` is required", "type": "invalid_request_error"},
         )
 
-    model_info = _resolve_model(payload.get("model"))
-    features = _extract_features(model_info, payload)
+    try:
+        features = await _resolve_model(payload)
+    except ModelResolutionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": str(exc), "type": "invalid_request_error"},
+        ) from exc
     request.state.request_model = features["request_model"]
     conversation_id = _extract_conversation_id(payload)
 
     async with Kimi2API() as client:
         result = await client.chat.completions.create(
             model=features["model"],
+            model_spec=features["model_spec"],
             messages=messages,
             conversation_id=conversation_id,
-            enable_thinking=features["enable_thinking"],
             enable_web_search=features["enable_web_search"],
         )
     result.model = features["request_model"]
@@ -194,8 +206,13 @@ async def create_response(request: Request) -> Any:
             detail={"message": "`input` or `messages` is required", "type": "invalid_request_error"},
         )
 
-    model_info = _resolve_model(payload.get("model"))
-    features = _extract_features(model_info, payload)
+    try:
+        features = await _resolve_model(payload)
+    except ModelResolutionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": str(exc), "type": "invalid_request_error"},
+        ) from exc
     request.state.request_model = features["request_model"]
     conversation_id = _extract_conversation_id(payload)
     stream = bool(payload.get("stream", False))
@@ -205,10 +222,10 @@ async def create_response(request: Request) -> Any:
             _create_streaming_responses_response(
                 request=request,
                 model=features["model"],
+                model_spec=features["model_spec"],
                 response_model=features["request_model"],
                 messages=messages,
                 conversation_id=conversation_id,
-                enable_thinking=features["enable_thinking"],
                 enable_web_search=features["enable_web_search"],
             ),
             media_type="text/event-stream",
@@ -222,10 +239,10 @@ async def create_response(request: Request) -> Any:
     async with Kimi2API() as client:
         result = await client.chat.completions.create(
             model=features["model"],
+            model_spec=features["model_spec"],
             messages=messages,
             stream=False,
             conversation_id=conversation_id,
-            enable_thinking=features["enable_thinking"],
             enable_web_search=features["enable_web_search"],
         )
         result.model = features["request_model"]

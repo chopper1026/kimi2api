@@ -45,7 +45,7 @@ def test_streaming_request_duration_includes_body_iteration(
             "/v1/chat/completions",
             headers={"Authorization": f"Bearer {configured_api_key.key}"},
             json={
-                "model": "kimi-2.6-thinking",
+                "model": "kimi-k2.6-thinking",
                 "stream": True,
                 "messages": [{"role": "user", "content": "hi"}],
             },

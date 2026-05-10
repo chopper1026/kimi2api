@@ -20,10 +20,10 @@ from .events import (
     iter_grpc_events,
     update_context_from_event,
 )
+from .model_catalog import KimiModelSpec
 from .protocol import (
     KIMI_CHAT_PATH,
     KIMI_RESEARCH_USAGE_PATH,
-    KIMI_SCENARIO,
     KIMI_SUBSCRIPTION_PATH,
     ChatCompletion,
     ChatCompletionChunk,
@@ -83,10 +83,14 @@ class ChatCompletions:
         )
 
         request_body = self._client._build_chat_payload(
-            model=model,
+            model_spec=kwargs.get("model_spec") or KimiModelSpec(
+                id=model,
+                display_name=model,
+                scenario=kwargs.get("scenario", "SCENARIO_K2D5"),
+                thinking=bool(kwargs.get("enable_thinking", False)),
+            ),
             messages=parsed_messages,
             context=context,
-            enable_thinking=bool(kwargs.get("enable_thinking", False)),
             enable_web_search=bool(kwargs.get("enable_web_search", False)),
         )
 
@@ -218,13 +222,24 @@ class Kimi2API:
 
     def _build_chat_payload(
         self,
-        model: str,
-        messages: List[Message],
+        model_spec: KimiModelSpec,
+        messages: List[Any],
         context: ConversationContext,
-        enable_thinking: bool,
         enable_web_search: bool,
     ) -> Dict[str, Any]:
-        content = _format_messages(messages)
+        parsed_messages = [
+            message
+            if isinstance(message, Message)
+            else Message(
+                role=message.get("role", "user"),
+                content=message.get("content", ""),
+                name=message.get("name"),
+                tool_call_id=message.get("tool_call_id"),
+                tool_calls=message.get("tool_calls"),
+            )
+            for message in messages
+        ]
+        content = _format_messages(parsed_messages)
         if not content:
             raise ValueError("messages content must not be empty")
 
@@ -236,13 +251,13 @@ class Kimi2API:
                     "text": {"content": content},
                 }
             ],
-            "scenario": KIMI_SCENARIO,
+            "scenario": model_spec.scenario,
         }
         if context.last_assistant_message_id:
             message["parent_id"] = context.last_assistant_message_id
 
         payload: Dict[str, Any] = {
-            "scenario": KIMI_SCENARIO,
+            "scenario": model_spec.scenario,
             "tools": (
                 [{"type": "TOOL_TYPE_SEARCH", "search": {}}]
                 if enable_web_search
@@ -250,9 +265,13 @@ class Kimi2API:
             ),
             "message": message,
             "options": {
-                "thinking": enable_thinking,
+                "thinking": model_spec.thinking,
             },
         }
+        if model_spec.kimi_plus_id:
+            payload["kimiplusId"] = model_spec.kimi_plus_id
+        if model_spec.agent_mode:
+            payload["agentMode"] = model_spec.agent_mode
         if context.remote_chat_id:
             payload["chat_id"] = context.remote_chat_id
         return payload

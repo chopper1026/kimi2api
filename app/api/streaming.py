@@ -5,6 +5,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 from fastapi import Request
 
 from ..kimi import Kimi2API, KimiAPIError, ChatCompletionChunk
+from ..kimi.model_catalog import KimiModelSpec
 
 logger = logging.getLogger("kimi2api.api")
 
@@ -80,10 +81,10 @@ async def _create_streaming_chat_response(
     *,
     request: Optional[Request] = None,
     model: str,
+    model_spec: KimiModelSpec,
     response_model: str,
     messages: List[Dict[str, Any]],
     conversation_id: Optional[str],
-    enable_thinking: bool,
     enable_web_search: bool,
 ) -> AsyncIterator[str]:
     client: Optional[Kimi2API] = None
@@ -91,10 +92,10 @@ async def _create_streaming_chat_response(
         client = Kimi2API()
         stream = await client.chat.completions.create(
             model=model,
+            model_spec=model_spec,
             messages=messages,
             stream=True,
             conversation_id=conversation_id,
-            enable_thinking=enable_thinking,
             enable_web_search=enable_web_search,
         )
         async for chunk in _stream_chat_chunks(stream, response_model):
@@ -118,10 +119,10 @@ async def _create_streaming_responses_response(
     *,
     request: Optional[Request] = None,
     model: str,
+    model_spec: KimiModelSpec,
     response_model: str,
     messages: List[Dict[str, Any]],
     conversation_id: Optional[str],
-    enable_thinking: bool,
     enable_web_search: bool,
 ) -> AsyncIterator[str]:
     client: Optional[Kimi2API] = None
@@ -129,10 +130,10 @@ async def _create_streaming_responses_response(
         client = Kimi2API()
         stream = await client.chat.completions.create(
             model=model,
+            model_spec=model_spec,
             messages=messages,
             stream=True,
             conversation_id=conversation_id,
-            enable_thinking=enable_thinking,
             enable_web_search=enable_web_search,
         )
         async for chunk in _stream_responses_chunks(stream):
