@@ -25,7 +25,7 @@ def test_non_streaming_request_is_logged_immediately(
     assert recent_logs[0].method == "GET"
     assert recent_logs[0].path == "/v1/models"
     assert recent_logs[0].request_headers["authorization"] == "[redacted]"
-    assert '"object":"list"' in recent_logs[0].response_body
+    assert recent_logs[0].response_body == ""
 
 
 def test_streaming_request_duration_includes_body_iteration(
@@ -35,7 +35,8 @@ def test_streaming_request_duration_includes_body_iteration(
 ):
     async def slow_stream(**_kwargs):
         await asyncio.sleep(0.05)
-        yield 'data: {"choices": []}\n\n'
+        yield 'data: {"choices":[{"delta":{"reasoning_content":"想一下"}}]}\n\n'
+        yield 'data: {"choices":[{"delta":{"content":"好了"}}]}\n\n'
         yield "data: [DONE]\n\n"
 
     with patch("app.api.routes._create_streaming_chat_response", slow_stream):
@@ -59,5 +60,7 @@ def test_streaming_request_duration_includes_body_iteration(
     assert recent_logs[0].is_stream is True
     assert recent_logs[0].duration_ms >= 50
     detail = logs.get_log(recent_logs[0].request_id)
-    assert detail.raw_stream_body == body
-    assert detail.parsed_response_text == ""
+    assert detail.raw_stream_body == ""
+    assert detail.response_body == ""
+    assert detail.parsed_response_text == "好了"
+    assert detail.parsed_reasoning_content == "想一下"

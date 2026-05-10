@@ -1,3 +1,40 @@
+{% macro render_json_node(value, key=None, depth=0) %}
+    {% if value is mapping %}
+        <details class="group py-0.5" {% if depth == 0 %}open{% endif %}>
+            <summary class="cursor-pointer select-none rounded px-1 py-0.5 font-mono text-xs text-gray-300 hover:bg-gray-900">
+                {% if key is not none %}<span class="text-sky-300">{{ key }}</span><span class="text-gray-600">: </span>{% endif %}
+                <span class="text-gray-500">{ {{ value|length }} }</span>
+            </summary>
+            <div class="ml-3 border-l border-gray-800 pl-3">
+                {% for child_key, child_value in value.items() %}
+                    {{ render_json_node(child_value, child_key, depth + 1) }}
+                {% else %}
+                    <div class="font-mono text-xs text-gray-600">{}</div>
+                {% endfor %}
+            </div>
+        </details>
+    {% elif value is sequence and value is not string %}
+        <details class="group py-0.5" {% if depth == 0 %}open{% endif %}>
+            <summary class="cursor-pointer select-none rounded px-1 py-0.5 font-mono text-xs text-gray-300 hover:bg-gray-900">
+                {% if key is not none %}<span class="text-sky-300">{{ key }}</span><span class="text-gray-600">: </span>{% endif %}
+                <span class="text-gray-500">[ {{ value|length }} ]</span>
+            </summary>
+            <div class="ml-3 border-l border-gray-800 pl-3">
+                {% for child_value in value %}
+                    {{ render_json_node(child_value, loop.index0, depth + 1) }}
+                {% else %}
+                    <div class="font-mono text-xs text-gray-600">[]</div>
+                {% endfor %}
+            </div>
+        </details>
+    {% else %}
+        <div class="flex gap-1 py-0.5 font-mono text-xs">
+            {% if key is not none %}<span class="shrink-0 text-sky-300">{{ key }}</span><span class="shrink-0 text-gray-600">:</span>{% endif %}
+            <span class="break-all {% if value is string %}text-emerald-300{% elif value is boolean %}text-violet-300{% elif value is number %}text-amber-300{% elif value is none %}text-gray-500{% else %}text-gray-300{% endif %}">{{ value|json_compact }}</span>
+        </div>
+    {% endif %}
+{% endmacro %}
+
 <div class="space-y-4">
     <div class="flex items-center justify-between">
         <div>
@@ -60,7 +97,13 @@
             </div>
             <div>
                 <div class="mb-1 text-xs text-gray-500">Body{% if log.request_body_truncated %} <span class="text-yellow-400">已截断</span>{% endif %}</div>
+                {% if log.request_body_is_json %}
+                <div data-json-view="request-body" class="max-h-96 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-300">
+                    {{ render_json_node(log.request_body_json) }}
+                </div>
+                {% else %}
                 <pre class="max-h-96 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-300 whitespace-pre-wrap">{{ log.request_body or "-" }}</pre>
+                {% endif %}
             </div>
         </section>
 
@@ -80,10 +123,6 @@
                 <pre class="max-h-48 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-300 whitespace-pre-wrap">{{ log.parsed_reasoning_content or "-" }}</pre>
             </div>
             {% endif %}
-            <div>
-                <div class="mb-1 text-xs text-gray-500">Body{% if log.response_body_truncated %} <span class="text-yellow-400">已截断</span>{% endif %}</div>
-                <pre class="max-h-96 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-300 whitespace-pre-wrap">{{ log.response_body or "-" }}</pre>
-            </div>
         </section>
     </div>
 </div>

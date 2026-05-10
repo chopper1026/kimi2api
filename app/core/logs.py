@@ -210,8 +210,7 @@ def _parse_stream_body(raw_body: str) -> Tuple[str, str]:
 def _prepare_entry(entry: RequestLog) -> RequestLog:
     limit = int(getattr(Config, "REQUEST_LOG_BODY_LIMIT_BYTES", 1048576))
     request_body, request_truncated = _sanitize_body(entry.request_body, limit)
-    response_body, response_truncated = _sanitize_body(entry.response_body, limit)
-    raw_stream_body = entry.raw_stream_body or (response_body if entry.is_stream else "")
+    raw_stream_body = entry.raw_stream_body or (entry.response_body if entry.is_stream else "")
 
     parsed_text = entry.parsed_response_text
     parsed_reasoning = entry.parsed_reasoning_content
@@ -225,9 +224,9 @@ def _prepare_entry(entry: RequestLog) -> RequestLog:
         response_headers=_sanitize_headers(entry.response_headers),
         request_body=request_body,
         request_body_truncated=request_truncated,
-        response_body=response_body,
-        response_body_truncated=response_truncated,
-        raw_stream_body=raw_stream_body,
+        response_body="",
+        response_body_truncated=False,
+        raw_stream_body="",
         parsed_response_text=parsed_text,
         parsed_reasoning_content=parsed_reasoning,
     )
@@ -362,7 +361,8 @@ def search_logs(
             "client_ip",
             "user_agent",
             "request_body",
-            "response_body",
+            "parsed_response_text",
+            "parsed_reasoning_content",
             "error_message",
         ),
         q.strip(),

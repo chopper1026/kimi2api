@@ -1,4 +1,5 @@
 import os
+import json
 from typing import Any, Dict
 
 import jinja2
@@ -10,6 +11,13 @@ _env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(_TEMPLATES_DIR),
     autoescape=True,
 )
+
+
+def _json_compact(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+_env.filters["json_compact"] = _json_compact
 
 
 def render_template(template_name: str, **context: Any) -> str:

@@ -40,7 +40,7 @@ def test_request_logs_are_persisted_and_trimmed(tmp_data_dir, config_override):
     detail = logs.get_log("req-3")
     assert detail is not None
     assert detail.path == "/v1/responses"
-    assert detail.response_body == "final answer"
+    assert detail.response_body == ""
 
 
 def test_request_logs_redact_credentials_and_truncate_bodies(tmp_data_dir, config_override):
@@ -68,7 +68,38 @@ def test_request_logs_redact_credentials_and_truncate_bodies(tmp_data_dir, confi
     assert detail.response_headers["set-cookie"] == "[redacted]"
     assert "refresh-secret" not in detail.request_body
     assert detail.request_body_truncated is True
-    assert detail.response_body_truncated is True
+    assert detail.response_body == ""
+    assert detail.response_body_truncated is False
+
+
+def test_stream_response_raw_body_is_parsed_but_not_persisted(tmp_data_dir, config_override):
+    raw_stream = "\n".join(
+        [
+            'data: {"choices":[{"delta":{"reasoning_content":"先想"}}]}',
+            'data: {"choices":[{"delta":{"content":"答案"}}]}',
+            "data: [DONE]",
+        ]
+    )
+
+    logs.log_request(
+        _entry(
+            "req-stream",
+            is_stream=True,
+            response_body=raw_stream,
+            raw_stream_body=raw_stream,
+        )
+    )
+
+    detail = logs.get_log("req-stream")
+    assert detail is not None
+    assert detail.response_body == ""
+    assert detail.response_body_truncated is False
+    assert detail.raw_stream_body == ""
+    assert detail.parsed_response_text == "答案"
+    assert detail.parsed_reasoning_content == "先想"
+
+    results = logs.search_logs(q="先想", limit=10)
+    assert [entry.request_id for entry in results] == ["req-stream"]
 
 
 def test_request_logs_can_be_filtered(tmp_data_dir, config_override):

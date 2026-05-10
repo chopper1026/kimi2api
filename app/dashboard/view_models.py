@@ -181,6 +181,15 @@ def _format_body(body: str) -> str:
         return body
 
 
+def _json_body_view(body: str) -> Dict[str, Any]:
+    if not body:
+        return {"is_json": False, "parsed": None, "text": ""}
+    try:
+        return {"is_json": True, "parsed": json.loads(body), "text": ""}
+    except Exception:
+        return {"is_json": False, "parsed": None, "text": body}
+
+
 def _request_url(base_url: str, log: RequestLog) -> str:
     url = f"{base_url.rstrip('/')}{log.path}"
     if log.query_params:
@@ -192,6 +201,7 @@ def log_detail(request_id: str, base_url: str) -> Optional[Dict[str, Any]]:
     log = get_log(request_id)
     if log is None:
         return None
+    request_body = _json_body_view(log.request_body)
 
     return {
         "request_id": log.request_id,
@@ -211,11 +221,11 @@ def log_detail(request_id: str, base_url: str) -> Optional[Dict[str, Any]]:
         "is_stream": log.is_stream,
         "error_message": log.error_message,
         "request_headers": _pretty_json(log.request_headers),
-        "request_body": _format_body(log.request_body),
+        "request_body": _format_body(request_body["text"]),
+        "request_body_is_json": request_body["is_json"],
+        "request_body_json": request_body["parsed"],
         "request_body_truncated": log.request_body_truncated,
         "response_headers": _pretty_json(log.response_headers),
-        "response_body": _format_body(log.response_body),
-        "response_body_truncated": log.response_body_truncated,
         "raw_stream_body": log.raw_stream_body,
         "parsed_response_text": log.parsed_response_text,
         "parsed_reasoning_content": log.parsed_reasoning_content,

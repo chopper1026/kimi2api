@@ -56,6 +56,36 @@ def test_admin_logs_can_filter_and_open_detail(authenticated_admin_client, tmp_d
     assert "sk-secret" not in detail.text
 
 
+def test_admin_log_detail_renders_request_body_as_collapsible_json_without_response_body(
+    authenticated_admin_client,
+    tmp_data_dir,
+):
+    _log(
+        "req-json-body",
+        request_body=(
+            '{"model":"kimi-2.6-thinking","messages":[{"role":"user",'
+            '"content":"找字段","metadata":{"trace_id":"trace-123"}}],'
+            '"enable_thinking":true}'
+        ),
+        response_body='{"raw_response_marker":"hide-me"}',
+        raw_stream_body='{"raw_response_marker":"hide-me"}',
+        parsed_response_text="",
+        parsed_reasoning_content="",
+    )
+
+    detail = authenticated_admin_client.get("/admin/logs/req-json-body")
+
+    assert detail.status_code == 200
+    assert 'data-json-view="request-body"' in detail.text
+    assert "<summary" in detail.text
+    assert "messages" in detail.text
+    assert "trace_id" in detail.text
+    assert "hide-me" not in detail.text
+
+    response_section = detail.text.split('<h3 class="font-medium">响应</h3>', 1)[1]
+    assert "Body" not in response_section
+
+
 def test_admin_logs_use_ms_for_short_duration(authenticated_admin_client, tmp_data_dir):
     _log("req-fast", status="success", status_code=200, duration_ms=42.4, error_message="")
 
