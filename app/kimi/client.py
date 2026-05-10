@@ -34,8 +34,9 @@ from .protocol import (
     _format_messages,
 )
 from .transport import (
-    KimiTransport,
     build_kimi_headers,
+    classify_upstream_status,
+    get_shared_transport,
     load_or_create_client_identity,
     process_session_id,
     retry_after_seconds,
@@ -132,7 +133,7 @@ class Kimi2API:
         self._max_retries = max_retries
         self._device_id = load_or_create_client_identity().device_id
         self._session_id = process_session_id()
-        self._transport = KimiTransport(
+        self._transport = get_shared_transport(
             base_url=self._base_url,
             timeout=self._timeout,
             max_retries=self._max_retries,
@@ -271,6 +272,8 @@ class Kimi2API:
             retry_after=retry_after_seconds(response.headers)
             if response.status_code == 429
             else None,
+            upstream_status_code=response.status_code,
+            upstream_error_type=classify_upstream_status(response.status_code),
         )
 
     def _update_context_from_event(
@@ -361,7 +364,10 @@ class Kimi2API:
                 last_error = exc
                 if attempt == self._max_retries:
                     raise KimiAPIError(
-                        f"chat completion failed after {self._max_retries} attempts: {exc}"
+                        f"chat completion failed after {self._max_retries} attempts: {exc}",
+                        retry_after=exc.retry_after,
+                        upstream_status_code=exc.upstream_status_code,
+                        upstream_error_type=exc.upstream_error_type,
                     ) from exc
                 await asyncio.sleep(
                     exc.retry_after
@@ -377,6 +383,13 @@ class Kimi2API:
                 await asyncio.sleep(min(0.5 * attempt, 2.0))
 
         if last_error and not content_parts and not reasoning_parts:
+            if isinstance(last_error, KimiAPIError):
+                raise KimiAPIError(
+                    str(last_error),
+                    retry_after=last_error.retry_after,
+                    upstream_status_code=last_error.upstream_status_code,
+                    upstream_error_type=last_error.upstream_error_type,
+                ) from last_error
             raise KimiAPIError(str(last_error))
 
         final_id = context.remote_chat_id or context.request_conversation_id
@@ -439,7 +452,7 @@ class Kimi2API:
         return generator()
 
     async def close(self) -> None:
-        await self._transport.close()
+        return None
 
     async def __aenter__(self) -> "Kimi2API":
         return self

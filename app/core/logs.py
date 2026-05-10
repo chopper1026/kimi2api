@@ -57,6 +57,9 @@ class RequestLog:
     parsed_response_text: str = ""
     parsed_reasoning_content: str = ""
     error_message: str = ""
+    upstream_status_code: int = 0
+    upstream_error_type: str = ""
+    upstream_retry_after: float = 0.0
 
 
 def _db_path() -> str:
@@ -98,15 +101,30 @@ def _init_db(conn: sqlite3.Connection) -> None:
             raw_stream_body TEXT NOT NULL,
             parsed_response_text TEXT NOT NULL,
             parsed_reasoning_content TEXT NOT NULL,
-            error_message TEXT NOT NULL
+            error_message TEXT NOT NULL,
+            upstream_status_code INTEGER NOT NULL DEFAULT 0,
+            upstream_error_type TEXT NOT NULL DEFAULT '',
+            upstream_retry_after REAL NOT NULL DEFAULT 0
         )
         """
     )
+    _ensure_column(conn, "upstream_status_code", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(conn, "upstream_error_type", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(conn, "upstream_retry_after", "REAL NOT NULL DEFAULT 0")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(timestamp DESC)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_status ON request_logs(status)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_model ON request_logs(model)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_path ON request_logs(path)")
     conn.commit()
+
+
+def _ensure_column(conn: sqlite3.Connection, name: str, definition: str) -> None:
+    existing = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(request_logs)").fetchall()
+    }
+    if name not in existing:
+        conn.execute(f"ALTER TABLE request_logs ADD COLUMN {name} {definition}")
 
 
 def _json_dumps(value: Any) -> str:
@@ -263,9 +281,10 @@ def log_request(entry: RequestLog) -> None:
                     request_headers, request_body, request_body_truncated,
                     response_headers, response_body, response_body_truncated,
                     raw_stream_body, parsed_response_text, parsed_reasoning_content,
-                    error_message
+                    error_message, upstream_status_code, upstream_error_type,
+                    upstream_retry_after
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     entry.request_id,
@@ -291,6 +310,9 @@ def log_request(entry: RequestLog) -> None:
                     entry.parsed_response_text,
                     entry.parsed_reasoning_content,
                     entry.error_message,
+                    int(entry.upstream_status_code or 0),
+                    entry.upstream_error_type,
+                    float(entry.upstream_retry_after or 0.0),
                 ),
             )
             _trim_logs(conn)
@@ -324,6 +346,9 @@ def _row_to_entry(row: sqlite3.Row) -> RequestLog:
         parsed_response_text=row["parsed_response_text"],
         parsed_reasoning_content=row["parsed_reasoning_content"],
         error_message=row["error_message"],
+        upstream_status_code=row["upstream_status_code"],
+        upstream_error_type=row["upstream_error_type"],
+        upstream_retry_after=row["upstream_retry_after"],
     )
 
 
@@ -420,6 +445,8 @@ def _log_query_parts(
             "parsed_response_text",
             "parsed_reasoning_content",
             "error_message",
+            "upstream_status_code",
+            "upstream_error_type",
         ),
         q.strip(),
     )

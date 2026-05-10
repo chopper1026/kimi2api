@@ -15,6 +15,7 @@ from .protocol import FAKE_HEADERS, generate_device_id, generate_session_id
 
 IDENTITY_FILE_NAME = "kimi_client_identity.json"
 RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504]
+_shared_transports: Dict[Tuple[str, float, int], "KimiTransport"] = {}
 
 
 @dataclass(frozen=True)
@@ -152,6 +153,20 @@ def retry_backoff_seconds(attempt: int) -> float:
     return min(0.5 * attempt, 2.0) + random.uniform(0.0, 0.2)
 
 
+def classify_upstream_status(status_code: int) -> str:
+    if status_code == 401:
+        return "unauthorized"
+    if status_code == 403:
+        return "forbidden"
+    if status_code == 429:
+        return "rate_limited"
+    if 500 <= status_code <= 599:
+        return "server_error"
+    if status_code > 0:
+        return "upstream_error"
+    return ""
+
+
 class KimiTransport:
     def __init__(
         self,
@@ -166,6 +181,7 @@ class KimiTransport:
         self.timeout = timeout or Config.TIMEOUT
         self.max_retries = max(int(max_retries), 1)
         self._rate_limiter = rate_limiter or get_rate_limiter()
+        self._closed = False
         client_kwargs: Dict[str, Any] = {
             "timeout": httpx.Timeout(self.timeout),
             "follow_redirects": True,
@@ -178,6 +194,10 @@ class KimiTransport:
         if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
             return path_or_url
         return f"{self.base_url}{path_or_url}"
+
+    @property
+    def is_closed(self) -> bool:
+        return self._closed or self._client.is_closed
 
     async def request(
         self,
@@ -233,10 +253,41 @@ class KimiTransport:
                 yield response
 
     async def close(self) -> None:
+        if self.is_closed:
+            return
         await self._client.aclose()
+        self._closed = True
 
     async def __aenter__(self) -> "KimiTransport":
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         await self.close()
+
+
+def get_shared_transport(
+    *,
+    base_url: Optional[str] = None,
+    timeout: Optional[float] = None,
+    max_retries: int = 3,
+) -> KimiTransport:
+    resolved_base_url = (base_url or Config.KIMI_API_BASE).rstrip("/")
+    resolved_timeout = float(timeout or Config.TIMEOUT)
+    resolved_retries = max(int(max_retries), 1)
+    key = (resolved_base_url, resolved_timeout, resolved_retries)
+    transport = _shared_transports.get(key)
+    if transport is None or transport.is_closed:
+        transport = KimiTransport(
+            base_url=resolved_base_url,
+            timeout=resolved_timeout,
+            max_retries=resolved_retries,
+        )
+        _shared_transports[key] = transport
+    return transport
+
+
+async def close_shared_transports() -> None:
+    transports = list(_shared_transports.values())
+    _shared_transports.clear()
+    for transport in transports:
+        await transport.close()

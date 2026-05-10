@@ -63,6 +63,9 @@
                         {% if log.error_message %}
                         <div class="mt-1 max-w-md truncate text-red-300">{{ log.error_message }}</div>
                         {% endif %}
+                        {% if log.upstream_summary %}
+                        <div class="mt-1 max-w-md truncate font-mono text-[11px] text-amber-300">{{ log.upstream_summary }}</div>
+                        {% endif %}
                     </td>
                     <td class="px-5 py-2.5 text-xs font-mono">{{ log.model }}</td>
                     <td class="px-5 py-2.5 text-xs">

@@ -95,6 +95,30 @@ def test_admin_logs_use_ms_for_short_duration(authenticated_admin_client, tmp_da
     assert "42.4ms" in listing.text
 
 
+def test_admin_logs_show_upstream_error_metadata(authenticated_admin_client, tmp_data_dir):
+    _log(
+        "req-upstream",
+        error_message="upstream rate limited",
+        upstream_status_code=429,
+        upstream_error_type="rate_limited",
+        upstream_retry_after=1.5,
+    )
+
+    listing = authenticated_admin_client.get("/admin/logs", params={"q": "rate_limited"})
+    detail = authenticated_admin_client.get("/admin/logs/req-upstream")
+
+    assert listing.status_code == 200
+    assert "Kimi 429" in listing.text
+    assert "rate_limited" in listing.text
+    assert "1.5s" in listing.text
+
+    assert detail.status_code == 200
+    assert "上游错误" in detail.text
+    assert "Kimi 429" in detail.text
+    assert "rate_limited" in detail.text
+    assert "Retry-After: 1.5s" in detail.text
+
+
 def test_admin_logs_are_paginated_twenty_per_page(authenticated_admin_client, tmp_data_dir):
     for index in range(25):
         _log(f"req-page-{index:02d}", timestamp=float(index), error_message="timeout")

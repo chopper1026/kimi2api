@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 import pytest
 
@@ -74,6 +76,42 @@ async def test_transport_retries_429_after_retry_after(monkeypatch):
     assert response.status_code == 200
     assert calls == 2
     assert sleeps == [1.5]
+
+
+def test_shared_transport_reuses_connection_pool(config_override):
+    from app.kimi.transport import close_shared_transports, get_shared_transport
+
+    config_override(KIMI_API_BASE="https://kimi.example.test", TIMEOUT=30)
+
+    first = get_shared_transport()
+    second = get_shared_transport()
+
+    try:
+        assert first is second
+        assert first.is_closed is False
+    finally:
+        asyncio.run(close_shared_transports())
+
+
+def test_kimi_client_uses_shared_transport(
+    tmp_data_dir,
+    token_manager_store,
+):
+    from app.core.token_manager import TokenManager
+    from app.kimi.client import Kimi2API
+    from app.kimi.transport import close_shared_transports
+
+    token_manager_store.set(TokenManager("refresh-token"))
+    first = Kimi2API()
+    second = Kimi2API()
+
+    try:
+        assert first._transport is second._transport
+        asyncio.run(first.close())
+        assert second._transport.is_closed is False
+    finally:
+        asyncio.run(second.close())
+        asyncio.run(close_shared_transports())
 
 
 def test_generate_device_id_remains_numeric_range():

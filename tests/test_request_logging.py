@@ -1,6 +1,9 @@
 import asyncio
 from unittest.mock import patch
 
+from fastapi.responses import JSONResponse
+from starlette.routing import Route
+
 from app.core import logs
 
 
@@ -64,3 +67,36 @@ def test_streaming_request_duration_includes_body_iteration(
     assert detail.response_body == ""
     assert detail.parsed_response_text == "好了"
     assert detail.parsed_reasoning_content == "想一下"
+
+
+def test_request_logging_captures_upstream_error_metadata(
+    api_client,
+    configured_api_key,
+    reset_logs,
+):
+    async def upstream_error(_request):
+        return JSONResponse(
+            {"error": {"message": "upstream rate limited"}},
+            status_code=502,
+            headers={
+                "X-Kimi-Upstream-Status": "429",
+                "X-Kimi-Upstream-Error-Type": "rate_limited",
+                "X-Kimi-Upstream-Retry-After": "1.5",
+            },
+        )
+
+    api_client.app.router.routes.insert(
+        0,
+        Route("/v1/upstream-error-test", upstream_error, methods=["GET"]),
+    )
+
+    response = api_client.get(
+        "/v1/upstream-error-test",
+        headers={"Authorization": f"Bearer {configured_api_key.key}"},
+    )
+
+    assert response.status_code == 502
+    detail = logs.get_recent_logs()[0]
+    assert detail.upstream_status_code == 429
+    assert detail.upstream_error_type == "rate_limited"
+    assert detail.upstream_retry_after == 1.5

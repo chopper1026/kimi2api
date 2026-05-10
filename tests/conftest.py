@@ -39,6 +39,9 @@ def restore_config_state():
     try:
         yield
     finally:
+        from app.kimi.transport import close_shared_transports
+
+        asyncio.run(close_shared_transports())
         for name, value in previous.items():
             setattr(Config, name, value)
 

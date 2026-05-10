@@ -128,6 +128,30 @@ def test_request_logs_can_be_filtered(tmp_data_dir, config_override):
     assert [entry.request_id for entry in results] == ["req-error"]
 
 
+def test_request_logs_persist_upstream_error_metadata(tmp_data_dir, config_override):
+    logs.log_request(
+        _entry(
+            "req-upstream",
+            status="error",
+            status_code=502,
+            error_message="upstream rate limited",
+            upstream_status_code=429,
+            upstream_error_type="rate_limited",
+            upstream_retry_after=1.5,
+        )
+    )
+
+    detail = logs.get_log("req-upstream")
+
+    assert detail is not None
+    assert detail.upstream_status_code == 429
+    assert detail.upstream_error_type == "rate_limited"
+    assert detail.upstream_retry_after == 1.5
+    assert [entry.request_id for entry in logs.search_logs(q="rate_limited")] == [
+        "req-upstream"
+    ]
+
+
 def test_request_logs_support_offset_and_filtered_count(tmp_data_dir, config_override):
     config_override(REQUEST_LOG_RETENTION=30)
     for index in range(25):

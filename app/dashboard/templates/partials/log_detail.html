@@ -82,6 +82,12 @@
             {{ log.error_message }}
         </div>
         {% endif %}
+        {% if log.upstream_summary %}
+        <div class="rounded-lg border border-amber-900/50 bg-amber-950/20 p-3 text-sm">
+            <div class="text-xs text-amber-400">上游错误</div>
+            <div class="mt-1 font-mono text-amber-200">{{ log.upstream_summary }}</div>
+        </div>
+        {% endif %}
     </div>
 
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">

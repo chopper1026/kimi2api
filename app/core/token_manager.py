@@ -5,12 +5,13 @@ from dataclasses import dataclass, replace
 from typing import Optional
 
 from ..config import Config
-from ..kimi.protocol import detect_token_type, parse_jwt
+from ..kimi.protocol import KimiAPIError, detect_token_type, parse_jwt
 from ..kimi.transport import (
-    KimiTransport,
     build_kimi_headers,
+    get_shared_transport,
     load_or_create_client_identity,
     process_session_id,
+    retry_after_seconds,
 )
 
 logger = logging.getLogger("kimi2api.token_manager")
@@ -31,10 +32,11 @@ class TokenManager:
     def __init__(self, raw_token: str, base_url: Optional[str] = None):
         self._base_url = (base_url or Config.KIMI_API_BASE).rstrip("/")
         self._lock = asyncio.Lock()
-        self._transport = KimiTransport(base_url=self._base_url, timeout=30.0)
+        self._transport = get_shared_transport(base_url=self._base_url, timeout=30.0)
         self._device_id = load_or_create_client_identity().device_id
         self._session_id = process_session_id()
         self._state = self._initialize(raw_token)
+        self._last_refresh_error: Optional[KimiAPIError] = None
 
     def _initialize(self, raw_token: str) -> TokenState:
         token_type = detect_token_type(raw_token)
@@ -64,17 +66,29 @@ class TokenManager:
     async def get_access_token(self) -> str:
         async with self._lock:
             if self._needs_refresh():
-                await self._do_refresh()
+                refreshed = await self._do_refresh()
+                if not refreshed:
+                    raise self._refresh_error()
             return self._state.access_token
 
     def get_state(self) -> TokenState:
         return replace(self._state)
 
-    async def _do_refresh(self) -> None:
+    def _refresh_error(self) -> KimiAPIError:
+        return self._last_refresh_error or KimiAPIError(
+            "Kimi token refresh failed",
+            upstream_error_type="token_refresh_failed",
+        )
+
+    async def _do_refresh(self) -> bool:
         refresh_token = self._state.refresh_token
         if not refresh_token:
             logger.warning("No refresh token available, skipping refresh")
-            return
+            self._last_refresh_error = KimiAPIError(
+                "No refresh token available",
+                upstream_error_type="token_refresh_failed",
+            )
+            return False
         try:
             headers = {
                 **build_kimi_headers(
@@ -105,22 +119,50 @@ class TokenManager:
                         "Token refreshed successfully, expires_at=%.0f",
                         expires_at,
                     )
-                    return
+                    self._last_refresh_error = None
+                    return True
+                self._last_refresh_error = KimiAPIError(
+                    "Kimi token refresh response did not include an access token",
+                    upstream_status_code=response.status_code,
+                    upstream_error_type="token_refresh_failed",
+                    retry_after=retry_after_seconds(response.headers),
+                )
+                logger.warning("Token refresh response did not include an access token")
+                return False
+            body = response.text[:200]
+            self._last_refresh_error = KimiAPIError(
+                f"Kimi token refresh failed with status {response.status_code}: "
+                f"{body or '<empty>'}",
+                upstream_status_code=response.status_code,
+                upstream_error_type="token_refresh_failed",
+                retry_after=retry_after_seconds(response.headers),
+            )
             logger.warning(
                 "Token refresh failed with status %d: %s",
                 response.status_code,
-                response.text[:200],
+                body,
             )
+            return False
         except Exception as exc:
+            if isinstance(exc, KimiAPIError):
+                self._last_refresh_error = exc
+            else:
+                self._last_refresh_error = KimiAPIError(
+                    f"Kimi token refresh error: {exc}",
+                    upstream_error_type="token_refresh_failed",
+                )
             logger.warning("Token refresh error: %s", exc)
+            return False
 
     async def invalidate_and_retry(self) -> str:
         async with self._lock:
-            await self._do_refresh()
+            refreshed = await self._do_refresh()
+            if not refreshed:
+                raise self._refresh_error()
             return self._state.access_token
 
     async def close(self) -> None:
-        await self._transport.close()
+        return None
 
 
 _manager: Optional[TokenManager] = None
@@ -139,6 +181,13 @@ async def replace_token_manager(raw_token: str, base_url: Optional[str] = None) 
     if old_manager is not None:
         await old_manager.close()
     return _manager
+
+
+async def close_token_manager() -> None:
+    global _manager
+    if _manager is not None:
+        await _manager.close()
+        _manager = None
 
 
 def get_token_manager() -> TokenManager:

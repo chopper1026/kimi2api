@@ -7,10 +7,12 @@ from ..config import Config
 from ..core.token_manager import get_token_manager
 from .protocol import KimiAPIError
 from .transport import (
-    KimiTransport,
     build_kimi_headers,
+    classify_upstream_status,
+    get_shared_transport,
     load_or_create_client_identity,
     process_session_id,
+    retry_after_seconds,
 )
 
 KIMI_AVAILABLE_MODELS_PATH = (
@@ -191,16 +193,19 @@ async def fetch_model_catalog(base_url: Optional[str] = None) -> KimiModelCatalo
         },
     )
 
-    async with KimiTransport(base_url=resolved_base_url, timeout=15.0) as transport:
-        response = await transport.request(
-            "POST",
-            KIMI_AVAILABLE_MODELS_PATH,
-            json={},
-            headers=headers,
-        )
+    transport = get_shared_transport(base_url=resolved_base_url, timeout=15.0)
+    response = await transport.request(
+        "POST",
+        KIMI_AVAILABLE_MODELS_PATH,
+        json={},
+        headers=headers,
+    )
     if response.status_code != 200:
         raise KimiAPIError(
-            f"failed to fetch Kimi model catalog: {response.status_code}"
+            f"failed to fetch Kimi model catalog: {response.status_code}",
+            upstream_status_code=response.status_code,
+            upstream_error_type=classify_upstream_status(response.status_code),
+            retry_after=retry_after_seconds(response.headers),
         )
     return parse_model_catalog(response.json())
 

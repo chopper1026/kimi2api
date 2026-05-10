@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .bootstrap import initialize_runtime, load_runtime_config
+from .bootstrap import initialize_runtime, load_runtime_config, shutdown_runtime
 from .config import Config
 from .kimi import KimiAPIError
 from .core.keys import get_key as _get_key
@@ -114,6 +114,55 @@ def _extract_error_message(
     return text[:500]
 
 
+def _response_header(response_headers: Dict[str, str], name: str) -> str:
+    normalized = name.lower()
+    for key, value in response_headers.items():
+        if key.lower() == normalized:
+            return value
+    return ""
+
+
+def _parse_int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _parse_float(value: Any) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _upstream_log_metadata(
+    request: Request,
+    response_headers: Dict[str, str],
+) -> Dict[str, Any]:
+    status_code = _parse_int(getattr(request.state, "upstream_status_code", 0))
+    if not status_code:
+        status_code = _parse_int(
+            _response_header(response_headers, "X-Kimi-Upstream-Status")
+        )
+
+    error_type = str(getattr(request.state, "upstream_error_type", "") or "")
+    if not error_type:
+        error_type = _response_header(response_headers, "X-Kimi-Upstream-Error-Type")
+
+    retry_after = _parse_float(getattr(request.state, "upstream_retry_after", 0.0))
+    if not retry_after:
+        retry_after = _parse_float(
+            _response_header(response_headers, "X-Kimi-Upstream-Retry-After")
+        )
+
+    return {
+        "upstream_status_code": status_code,
+        "upstream_error_type": error_type,
+        "upstream_retry_after": retry_after,
+    }
+
+
 def _log_v1_request(
     *,
     request: Request,
@@ -135,6 +184,7 @@ def _log_v1_request(
         body=response_body,
         fallback=error_message or stream_error_message,
     )
+    upstream_metadata = _upstream_log_metadata(request, response_headers)
 
     log_request(RequestLog(
         timestamp=start,
@@ -156,6 +206,7 @@ def _log_v1_request(
         response_body=_body_to_text(response_body),
         raw_stream_body=_body_to_text(response_body) if is_stream else "",
         error_message=message,
+        **upstream_metadata,
     ))
 
 
@@ -228,6 +279,9 @@ def create_app(initialize: bool = True) -> FastAPI:
         request.state.request_model = "unknown"
         request.state.stream_error = False
         request.state.stream_error_message = ""
+        request.state.upstream_status_code = 0
+        request.state.upstream_error_type = ""
+        request.state.upstream_retry_after = 0.0
         request_body = await request.body()
         request = _request_with_body(request, request_body)
 
@@ -287,7 +341,10 @@ def create_app(initialize: bool = True) -> FastAPI:
 
     # ---- Exception handlers ----
     @app.exception_handler(KimiAPIError)
-    async def handle_kimi_error(_: Request, exc: KimiAPIError) -> JSONResponse:
+    async def handle_kimi_error(request: Request, exc: KimiAPIError) -> JSONResponse:
+        request.state.upstream_status_code = exc.upstream_status_code
+        request.state.upstream_error_type = exc.upstream_error_type
+        request.state.upstream_retry_after = exc.retry_after or 0.0
         return _json_error(str(exc), "api_error", status.HTTP_502_BAD_GATEWAY)
 
     @app.exception_handler(HTTPException)
@@ -303,6 +360,12 @@ def create_app(initialize: bool = True) -> FastAPI:
     # ---- Include routers ----
     app.include_router(api_router)
     app.include_router(create_dashboard_router())
+
+    if initialize:
+        async def shutdown_runtime_event() -> None:
+            await shutdown_runtime()
+
+        app.router.add_event_handler("shutdown", shutdown_runtime_event)
 
     return app
 

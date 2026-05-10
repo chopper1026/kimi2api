@@ -63,6 +63,24 @@ def fmt_request_duration(duration_ms: float) -> str:
     return f"{minutes}m {remaining_seconds:.1f}s"
 
 
+def _fmt_retry_after(seconds: float) -> str:
+    if seconds <= 0:
+        return ""
+    return f"{seconds:.1f}s"
+
+
+def _upstream_summary(log: RequestLog) -> str:
+    parts = []
+    if log.upstream_status_code:
+        parts.append(f"Kimi {log.upstream_status_code}")
+    if log.upstream_error_type:
+        parts.append(log.upstream_error_type)
+    retry_after = _fmt_retry_after(log.upstream_retry_after)
+    if retry_after:
+        parts.append(f"Retry-After: {retry_after}")
+    return " / ".join(parts)
+
+
 def token_info() -> Dict[str, Any]:
     try:
         mgr = get_token_manager()
@@ -175,6 +193,10 @@ def _serialize_logs(entries: List[RequestLog]) -> List[Dict[str, Any]]:
             "duration_display": fmt_request_duration(log.duration_ms),
             "is_stream": log.is_stream,
             "error_message": log.error_message,
+            "upstream_status_code": log.upstream_status_code,
+            "upstream_error_type": log.upstream_error_type,
+            "upstream_retry_after": log.upstream_retry_after,
+            "upstream_summary": _upstream_summary(log),
         })
     return result
 
@@ -281,6 +303,10 @@ def log_detail(request_id: str, base_url: str) -> Optional[Dict[str, Any]]:
         "duration_display": fmt_request_duration(log.duration_ms),
         "is_stream": log.is_stream,
         "error_message": log.error_message,
+        "upstream_status_code": log.upstream_status_code,
+        "upstream_error_type": log.upstream_error_type,
+        "upstream_retry_after": log.upstream_retry_after,
+        "upstream_summary": _upstream_summary(log),
         "request_headers": _pretty_json(log.request_headers),
         "request_body": _format_body(request_body["text"]),
         "request_body_is_json": request_body["is_json"],

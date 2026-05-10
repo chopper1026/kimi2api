@@ -22,10 +22,18 @@ def _stream_error_chunk(message: str, error_type: str = "api_error") -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-def _mark_stream_error(request: Optional[Request], message: str = "") -> None:
+def _mark_stream_error(
+    request: Optional[Request],
+    message: str = "",
+    exc: Optional[KimiAPIError] = None,
+) -> None:
     if request is not None:
         request.state.stream_error = True
         request.state.stream_error_message = message
+        if exc is not None:
+            request.state.upstream_status_code = exc.upstream_status_code
+            request.state.upstream_error_type = exc.upstream_error_type
+            request.state.upstream_retry_after = exc.retry_after or 0.0
 
 
 async def _stream_chat_chunks(
@@ -101,7 +109,7 @@ async def _create_streaming_chat_response(
         async for chunk in _stream_chat_chunks(stream, response_model):
             yield chunk
     except KimiAPIError as exc:
-        _mark_stream_error(request, str(exc))
+        _mark_stream_error(request, str(exc), exc)
         logger.warning("Streaming chat request failed: %s", exc)
         yield _stream_error_chunk(str(exc))
         yield "data: [DONE]\n\n"
@@ -139,7 +147,7 @@ async def _create_streaming_responses_response(
         async for chunk in _stream_responses_chunks(stream):
             yield chunk
     except KimiAPIError as exc:
-        _mark_stream_error(request, str(exc))
+        _mark_stream_error(request, str(exc), exc)
         logger.warning("Streaming responses request failed: %s", exc)
         yield _stream_error_chunk(str(exc))
         yield "data: [DONE]\n\n"
