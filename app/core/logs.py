@@ -208,7 +208,7 @@ def _parse_stream_body(raw_body: str) -> Tuple[str, str]:
 
 
 def _prepare_entry(entry: RequestLog) -> RequestLog:
-    limit = int(getattr(Config, "REQUEST_LOG_BODY_LIMIT_BYTES", 1048576))
+    limit = int(getattr(Config, "REQUEST_LOG_BODY_LIMIT", 1048576))
     request_body, request_truncated = _sanitize_body(entry.request_body, limit)
     raw_stream_body = entry.raw_stream_body or (entry.response_body if entry.is_stream else "")
 

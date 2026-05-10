@@ -44,7 +44,7 @@ def test_request_logs_are_persisted_and_trimmed(tmp_data_dir, config_override):
 
 
 def test_request_logs_redact_credentials_and_truncate_bodies(tmp_data_dir, config_override):
-    config_override(REQUEST_LOG_BODY_LIMIT_BYTES=32)
+    config_override(REQUEST_LOG_BODY_LIMIT=32)
 
     logs.log_request(
         _entry(

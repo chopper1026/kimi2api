@@ -79,7 +79,7 @@ def _chunk_to_bytes(chunk: Any) -> bytes:
 
 
 def _capture_limit() -> int:
-    return max(int(getattr(Config, "REQUEST_LOG_BODY_LIMIT_BYTES", 1048576)), 0) + 1
+    return max(int(getattr(Config, "REQUEST_LOG_BODY_LIMIT", 1048576)), 0) + 1
 
 
 def _append_capture(buffer: bytearray, chunk: Any) -> None:
