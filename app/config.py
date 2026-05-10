@@ -16,6 +16,7 @@ class Config:
     DATA_DIR: str = "data"
     REQUEST_LOG_RETENTION: int = 1000
     REQUEST_LOG_BODY_LIMIT_BYTES: int = 1048576
+    TIMEZONE: str = "Asia/Shanghai"
 
     @classmethod
     def load(cls) -> None:
@@ -33,3 +34,4 @@ class Config:
         cls.DATA_DIR = os.getenv("DATA_DIR", "data")
         cls.REQUEST_LOG_RETENTION = int(os.getenv("REQUEST_LOG_RETENTION", "1000"))
         cls.REQUEST_LOG_BODY_LIMIT_BYTES = int(os.getenv("REQUEST_LOG_BODY_LIMIT_BYTES", "1048576"))
+        cls.TIMEZONE = os.getenv("TIMEZONE") or os.getenv("TZ", "Asia/Shanghai")

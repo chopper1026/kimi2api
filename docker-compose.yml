@@ -9,6 +9,8 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
+      - TIMEZONE=${TIMEZONE:-Asia/Shanghai}
+      - TZ=${TZ:-Asia/Shanghai}
     volumes:
       - ./data:/app/data
     restart: unless-stopped

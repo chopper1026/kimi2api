@@ -14,6 +14,8 @@ RUN mkdir -p /app/data
 
 ENV HOST=0.0.0.0
 ENV PORT=8000
+ENV TIMEZONE=Asia/Shanghai
+ENV TZ=Asia/Shanghai
 
 EXPOSE 8000
 

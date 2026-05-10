@@ -1,9 +1,15 @@
 import time
 import json
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlencode
 
+try:
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+except ImportError:  # pragma: no cover - Python 3.8 compatibility
+    from backports.zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from ..config import Config
 from ..core.keys import list_keys, total_request_count
 from ..core.logs import RequestLog, get_log, get_recent_logs, search_logs
 from ..core.token_manager import get_token_manager
@@ -16,11 +22,24 @@ def set_start_time(t: float) -> None:
     _START_TIME = t
 
 
+def _display_timezone() -> Tuple[ZoneInfo, str]:
+    try:
+        return ZoneInfo(Config.TIMEZONE), Config.TIMEZONE
+    except ZoneInfoNotFoundError:
+        return ZoneInfo("Asia/Shanghai"), "Asia/Shanghai"
+
+
+def _local_datetime(ts: float) -> datetime:
+    timezone, _ = _display_timezone()
+    return datetime.fromtimestamp(ts, tz=timezone)
+
+
 def fmt_time(ts: float) -> str:
     if ts == 0:
         return "-"
-    dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-    return dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+    timezone, timezone_name = _display_timezone()
+    dt = datetime.fromtimestamp(ts, tz=timezone)
+    return dt.strftime("%Y-%m-%d %H:%M:%S ") + timezone_name
 
 
 def fmt_duration(seconds: float) -> str:
@@ -134,10 +153,7 @@ def log_list(filters: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
         result.append({
             "request_id": log.request_id,
             "request_id_short": log.request_id[:8],
-            "time_str": datetime.fromtimestamp(
-                log.timestamp,
-                tz=timezone.utc,
-            ).strftime("%m-%d %H:%M:%S"),
+            "time_str": _local_datetime(log.timestamp).strftime("%m-%d %H:%M:%S"),
             "api_key_name": log.api_key_name,
             "model": log.model,
             "method": log.method,

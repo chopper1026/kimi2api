@@ -119,6 +119,8 @@ docker compose up -d
 | `PORT` | 否 | `8000` | 监听端口 |
 | `RELOAD` | 否 | `false` | 是否启用 uvicorn 热重载 |
 | `DATA_DIR` | 否 | `data` | 本地数据目录 |
+| `TIMEZONE` | 否 | `Asia/Shanghai` | 管理面板时间显示时区 |
+| `TZ` | 否 | `Asia/Shanghai` | Docker 容器系统时区，建议与 `TIMEZONE` 保持一致 |
 | `REQUEST_LOG_RETENTION` | 否 | `1000` | 请求日志保留最近多少条 |
 | `REQUEST_LOG_BODY_LIMIT_BYTES` | 否 | `1048576` | 单条请求/响应正文最大保存字节数，超过会截断 |
 
