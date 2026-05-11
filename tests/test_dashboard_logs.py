@@ -113,6 +113,18 @@ def test_admin_logs_show_upstream_error_metadata(authenticated_admin_client, tmp
     assert "Retry-After: 1.5s" in detail_data["upstream_summary"]
 
 
+def test_admin_logs_leave_model_blank_for_model_list_request(
+    authenticated_admin_client,
+    tmp_data_dir,
+):
+    _log("req-model-list", method="GET", path="/v1/models", model="unknown")
+
+    listing = authenticated_admin_client.get("/admin/api/logs")
+
+    assert listing.status_code == 200
+    assert listing.json()["logs"][0]["model"] == ""
+
+
 def test_admin_logs_are_paginated_twenty_per_page(authenticated_admin_client, tmp_data_dir):
     for index in range(25):
         _log(f"req-page-{index:02d}", timestamp=float(index), error_message="timeout")

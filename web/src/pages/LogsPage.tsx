@@ -31,6 +31,19 @@ import {
   FileTextIcon,
 } from "lucide-react"
 
+function requestIdPreview(log: LogEntry) {
+  return log.request_id_short.length < log.request_id.length
+    ? `${log.request_id_short}...`
+    : log.request_id_short
+}
+
+function logModelLabel(log: LogEntry) {
+  if (log.path === "/v1/models" && log.model === "unknown") {
+    return ""
+  }
+  return log.model || ""
+}
+
 export default function LogsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -114,19 +127,19 @@ export default function LogsPage() {
     <div className="space-y-4">
       {/* Filters */}
       <div className="rounded-lg border border-border/60 bg-card p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(220px,1.4fr)_minmax(132px,0.8fr)_minmax(132px,0.8fr)_minmax(150px,1fr)_minmax(150px,1fr)_minmax(150px,1fr)]">
           <Input
             name="q"
             placeholder="关键词搜索"
             value={q}
             onChange={(e) => updateFilter("q", e.target.value)}
-            className="h-8 text-xs"
+            className="h-8 min-w-0 text-xs"
           />
           <Select
             value={status || ""}
             onValueChange={(v) => updateFilter("status", v === "__all__" ? "" : (v ?? ""))}
           >
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className="h-8 w-full min-w-0 text-xs">
               <SelectValue placeholder="状态：全部" />
             </SelectTrigger>
             <SelectContent>
@@ -139,7 +152,7 @@ export default function LogsPage() {
             value={stream || ""}
             onValueChange={(v) => updateFilter("stream", v === "__all__" ? "" : (v ?? ""))}
           >
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className="h-8 w-full min-w-0 text-xs">
               <SelectValue placeholder="类型：全部" />
             </SelectTrigger>
             <SelectContent>
@@ -153,21 +166,21 @@ export default function LogsPage() {
             placeholder="模型"
             value={model}
             onChange={(e) => updateFilter("model", e.target.value)}
-            className="h-8 text-xs"
+            className="h-8 min-w-0 text-xs"
           />
           <Input
             name="api_key_name"
             placeholder="Key 名称"
             value={api_key_name}
             onChange={(e) => updateFilter("api_key_name", e.target.value)}
-            className="h-8 text-xs"
+            className="h-8 min-w-0 text-xs"
           />
           <Input
             name="path"
             placeholder="路径"
             value={path}
             onChange={(e) => updateFilter("path", e.target.value)}
-            className="h-8 text-xs"
+            className="h-8 min-w-0 text-xs"
           />
         </div>
         <div className="mt-2.5 flex gap-2">
@@ -202,7 +215,17 @@ export default function LogsPage() {
       ) : (
         <>
           <div className="rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden">
-            <Table>
+            <Table className="min-w-[900px] table-fixed">
+              <colgroup>
+                <col className="w-28" />
+                <col className="w-28" />
+                <col className="w-32" />
+                <col />
+                <col className="w-36" />
+                <col className="w-[88px]" />
+                <col className="w-20" />
+                <col className="w-20" />
+              </colgroup>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-xs">时间</TableHead>
@@ -212,7 +235,7 @@ export default function LogsPage() {
                   <TableHead className="text-xs">模型</TableHead>
                   <TableHead className="text-xs">状态</TableHead>
                   <TableHead className="text-xs">耗时</TableHead>
-                  <TableHead className="text-right text-xs">操作</TableHead>
+                  <TableHead className="text-left text-xs">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -222,15 +245,18 @@ export default function LogsPage() {
                       {log.time_str}
                     </TableCell>
                     <TableCell>
-                      <code className="text-[11px] text-muted-foreground">
-                        {log.request_id_short}
+                      <code
+                        className="block truncate text-[11px] text-muted-foreground"
+                        title={log.request_id}
+                      >
+                        {requestIdPreview(log)}
                       </code>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {log.api_key_name || "-"}
                     </TableCell>
                     <TableCell>
-                      <div className="text-xs">
+                      <div className="truncate text-xs">
                         <span className="font-medium text-muted-foreground">
                           {log.method}
                         </span>{" "}
@@ -247,8 +273,8 @@ export default function LogsPage() {
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {log.model || "-"}
+                    <TableCell className="truncate text-xs text-muted-foreground">
+                      {logModelLabel(log)}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -271,14 +297,15 @@ export default function LogsPage() {
                     <TableCell className="text-xs text-muted-foreground">
                       {log.duration_display}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell>
                       <Button
-                        variant="ghost"
-                        size="icon-xs"
+                        variant="outline"
+                        size="xs"
                         onClick={() => navigate(`/admin/logs/${log.request_id}`)}
                         title="查看详情"
+                        className="h-7 px-2.5 text-[11px]"
                       >
-                        <FileTextIcon className="size-3.5" />
+                        详情
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -217,7 +217,7 @@ export default function LogDetailPage() {
                 <span className="ml-2 text-amber-600">（已截断）</span>
               )}
             </p>
-            {data.request_body_is_json && data.request_body_json !== null ? (
+            {data.request_body_is_json ? (
               <div className="rounded-lg bg-muted/50 p-3 overflow-auto max-h-96">
                 <JsonTreeView value={data.request_body_json} />
               </div>

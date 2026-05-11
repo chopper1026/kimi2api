@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CopyButton } from "@/components/shared/CopyButton"
-import { PlusIcon, TrashIcon } from "lucide-react"
+import { PlusIcon } from "lucide-react"
 
 export default function KeysPage() {
   const [keys, setKeys] = useState<KeyItem[]>([])
@@ -165,26 +165,34 @@ export default function KeysPage() {
         </div>
       ) : (
         <div className="rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden">
-          <Table>
+          <Table className="min-w-[860px] table-fixed">
+            <colgroup>
+              <col className="w-[18%]" />
+              <col className="w-[30%]" />
+              <col className="w-[18%]" />
+              <col className="w-[18%]" />
+              <col className="w-[8%]" />
+              <col className="w-24" />
+            </colgroup>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-xs">名称</TableHead>
                 <TableHead className="text-xs">Key</TableHead>
                 <TableHead className="text-xs">创建时间</TableHead>
                 <TableHead className="text-xs">上次使用</TableHead>
-                <TableHead className="text-xs">请求数</TableHead>
-                <TableHead className="text-right text-xs">操作</TableHead>
+                <TableHead className="text-center text-xs">请求数</TableHead>
+                <TableHead className="text-left text-xs">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {keys.map((item) => (
                 <TableRow key={item.key}>
-                  <TableCell className="text-sm font-medium">
+                  <TableCell className="truncate text-sm font-medium">
                     {item.name || "-"}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <code className="text-xs text-muted-foreground">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <code className="truncate text-xs text-muted-foreground">
                         {item.key_preview}
                       </code>
                       <CopyButton text={item.key} />
@@ -196,17 +204,17 @@ export default function KeysPage() {
                   <TableCell className="text-xs text-muted-foreground">
                     {item.last_used_str}
                   </TableCell>
-                  <TableCell className="text-xs">
+                  <TableCell className="text-center text-xs">
                     {item.request_count}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell>
                     <Button
-                      variant="ghost"
-                      size="icon-xs"
+                      variant="destructive"
+                      size="xs"
                       onClick={() => handleDelete(item.key)}
-                      className="text-muted-foreground hover:text-destructive"
+                      className="h-7 bg-destructive px-2.5 text-[11px] text-primary-foreground hover:bg-destructive/90"
                     >
-                      <TrashIcon className="size-3.5" />
+                      删除
                     </Button>
                   </TableCell>
                 </TableRow>

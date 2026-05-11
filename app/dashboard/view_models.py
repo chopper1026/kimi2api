@@ -81,6 +81,12 @@ def _upstream_summary(log: RequestLog) -> str:
     return " / ".join(parts)
 
 
+def _display_model(log: RequestLog) -> str:
+    if log.path == "/v1/models" and log.model == "unknown":
+        return ""
+    return log.model
+
+
 def token_info() -> Dict[str, Any]:
     try:
         mgr = get_token_manager()
@@ -184,7 +190,7 @@ def _serialize_logs(entries: List[RequestLog]) -> List[Dict[str, Any]]:
             "request_id_short": log.request_id[:8],
             "time_str": _local_datetime(log.timestamp).strftime("%m-%d %H:%M:%S"),
             "api_key_name": log.api_key_name,
-            "model": log.model,
+            "model": _display_model(log),
             "method": log.method,
             "path": log.path,
             "status": log.status,
@@ -296,7 +302,7 @@ def log_detail(request_id: str, base_url: str) -> Optional[Dict[str, Any]]:
         "client_ip": log.client_ip,
         "user_agent": log.user_agent,
         "api_key_name": log.api_key_name,
-        "model": log.model,
+        "model": _display_model(log),
         "status": log.status,
         "status_code": log.status_code,
         "duration_ms": log.duration_ms,
