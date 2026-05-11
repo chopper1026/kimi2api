@@ -44,6 +44,30 @@ function logModelLabel(log: LogEntry) {
   return log.model || ""
 }
 
+const statusFilterLabels: Record<string, string> = {
+  success: "成功",
+  error: "错误",
+}
+
+const streamFilterLabels: Record<string, string> = {
+  true: "流式",
+  false: "普通",
+}
+
+function formatStatusFilter(value: unknown) {
+  if (typeof value !== "string" || !value || value === "__all__") {
+    return "状态：全部"
+  }
+  return statusFilterLabels[value] ?? value
+}
+
+function formatStreamFilter(value: unknown) {
+  if (typeof value !== "string" || !value || value === "__all__") {
+    return "类型：全部"
+  }
+  return streamFilterLabels[value] ?? value
+}
+
 export default function LogsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -140,7 +164,9 @@ export default function LogsPage() {
             onValueChange={(v) => updateFilter("status", v === "__all__" ? "" : (v ?? ""))}
           >
             <SelectTrigger className="h-8 w-full min-w-0 text-xs">
-              <SelectValue placeholder="状态：全部" />
+              <SelectValue placeholder="状态：全部">
+                {formatStatusFilter}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">全部状态</SelectItem>
@@ -153,7 +179,9 @@ export default function LogsPage() {
             onValueChange={(v) => updateFilter("stream", v === "__all__" ? "" : (v ?? ""))}
           >
             <SelectTrigger className="h-8 w-full min-w-0 text-xs">
-              <SelectValue placeholder="类型：全部" />
+              <SelectValue placeholder="类型：全部">
+                {formatStreamFilter}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">全部类型</SelectItem>
