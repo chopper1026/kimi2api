@@ -1,3 +1,5 @@
+import json
+
 from app.core import logs
 
 
@@ -34,32 +36,28 @@ def test_admin_logs_can_filter_and_open_detail(authenticated_admin_client, tmp_d
     _log("req-ok", status="success", status_code=200, duration_ms=42.4, error_message="", response_body="ok")
 
     listing = authenticated_admin_client.get(
-        "/admin/logs",
+        "/admin/api/logs",
         params={"q": "timeout", "status": "error", "stream": "true"},
     )
 
     assert listing.status_code == 200
-    assert "req-timeout" in listing.text
-    assert "req-ok" not in listing.text
-    assert "upstream timeout" in listing.text
-    assert "2.3s" in listing.text
+    body = listing.json()
+    assert len(body["logs"]) == 1
+    assert body["logs"][0]["request_id"] == "req-timeout"
+    assert "timeout" in body["logs"][0]["error_message"]
+    assert body["logs"][0]["duration_display"] == "2.3s"
 
-    detail = authenticated_admin_client.get("/admin/logs/req-timeout")
+    detail = authenticated_admin_client.get("/admin/api/logs/req-timeout")
 
     assert detail.status_code == 200
-    assert "请求详情" in detail.text
-    assert "复制 curl" not in detail.text
-    assert "Bearer &lt;API_KEY&gt;" not in detail.text
-    assert "2345.6ms" not in detail.text
-    assert "2.3s" in detail.text
-    assert "你是什么大模型" in detail.text
-    assert "sk-secret" not in detail.text
+    detail_data = detail.json()
+    assert detail_data["request_id"] == "req-timeout"
+    assert detail_data["duration_display"] == "2.3s"
+    assert "你是什么大模型" in json.dumps(detail_data["request_body_json"], ensure_ascii=False)
+    assert "sk-secret" not in json.dumps(detail_data["request_body_json"], ensure_ascii=False)
 
 
-def test_admin_log_detail_renders_request_body_as_collapsible_json_without_response_body(
-    authenticated_admin_client,
-    tmp_data_dir,
-):
+def test_admin_log_detail_has_parsed_request_body_json(authenticated_admin_client, tmp_data_dir):
     _log(
         "req-json-body",
         request_body=(
@@ -73,26 +71,23 @@ def test_admin_log_detail_renders_request_body_as_collapsible_json_without_respo
         parsed_reasoning_content="",
     )
 
-    detail = authenticated_admin_client.get("/admin/logs/req-json-body")
+    detail = authenticated_admin_client.get("/admin/api/logs/req-json-body")
 
     assert detail.status_code == 200
-    assert 'data-json-view="request-body"' in detail.text
-    assert "<summary" in detail.text
-    assert "messages" in detail.text
-    assert "trace_id" in detail.text
-    assert "hide-me" not in detail.text
-
-    response_section = detail.text.split('<h3 class="font-medium">响应</h3>', 1)[1]
-    assert "Body" not in response_section
+    detail_data = detail.json()
+    assert detail_data["request_body_is_json"] is True
+    assert detail_data["request_body_json"] is not None
+    assert "messages" in str(detail_data["request_body_json"])
+    assert "trace_id" in str(detail_data["request_body_json"])
 
 
 def test_admin_logs_use_ms_for_short_duration(authenticated_admin_client, tmp_data_dir):
     _log("req-fast", status="success", status_code=200, duration_ms=42.4, error_message="")
 
-    listing = authenticated_admin_client.get("/admin/logs")
+    listing = authenticated_admin_client.get("/admin/api/logs")
 
     assert listing.status_code == 200
-    assert "42.4ms" in listing.text
+    assert listing.json()["logs"][0]["duration_display"] == "42.4ms"
 
 
 def test_admin_logs_show_upstream_error_metadata(authenticated_admin_client, tmp_data_dir):
@@ -104,42 +99,37 @@ def test_admin_logs_show_upstream_error_metadata(authenticated_admin_client, tmp
         upstream_retry_after=1.5,
     )
 
-    listing = authenticated_admin_client.get("/admin/logs", params={"q": "rate_limited"})
-    detail = authenticated_admin_client.get("/admin/logs/req-upstream")
+    listing = authenticated_admin_client.get("/admin/api/logs", params={"q": "rate_limited"})
+    detail = authenticated_admin_client.get("/admin/api/logs/req-upstream")
 
     assert listing.status_code == 200
-    assert "Kimi 429" in listing.text
-    assert "rate_limited" in listing.text
-    assert "1.5s" in listing.text
+    log_entry = listing.json()["logs"][0]
+    assert "Kimi 429" in log_entry["upstream_summary"]
+    assert "rate_limited" in log_entry["upstream_summary"]
 
-    assert detail.status_code == 200
-    assert "上游错误" in detail.text
-    assert "Kimi 429" in detail.text
-    assert "rate_limited" in detail.text
-    assert "Retry-After: 1.5s" in detail.text
+    detail_data = detail.json()
+    assert "Kimi 429" in detail_data["upstream_summary"]
+    assert "rate_limited" in detail_data["upstream_summary"]
+    assert "Retry-After: 1.5s" in detail_data["upstream_summary"]
 
 
 def test_admin_logs_are_paginated_twenty_per_page(authenticated_admin_client, tmp_data_dir):
     for index in range(25):
         _log(f"req-page-{index:02d}", timestamp=float(index), error_message="timeout")
 
-    first_page = authenticated_admin_client.get("/admin/logs", params={"q": "timeout"})
+    first_page = authenticated_admin_client.get("/admin/api/logs", params={"q": "timeout"})
     second_page = authenticated_admin_client.get(
-        "/admin/logs",
+        "/admin/api/logs",
         params={"q": "timeout", "page": "2"},
     )
 
     assert first_page.status_code == 200
-    assert "共 25 条" in first_page.text
-    assert "第 1 / 2 页" in first_page.text
-    assert "req-page-24" in first_page.text
-    assert "req-page-05" in first_page.text
-    assert "req-page-04" not in first_page.text
-    assert "page=2" in first_page.text
-    assert "q=timeout" in first_page.text
+    first_data = first_page.json()
+    assert first_data["pagination"]["total"] == 25
+    assert first_data["pagination"]["page_count"] == 2
+    assert len(first_data["logs"]) == 20
 
     assert second_page.status_code == 200
-    assert "第 2 / 2 页" in second_page.text
-    assert "req-page-04" in second_page.text
-    assert "req-page-00" in second_page.text
-    assert "req-page-24" not in second_page.text
+    second_data = second_page.json()
+    assert second_data["pagination"]["page"] == 2
+    assert len(second_data["logs"]) == 5

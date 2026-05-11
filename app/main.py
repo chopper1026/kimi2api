@@ -3,10 +3,11 @@ import json
 import time
 import uuid
 from typing import Any, AsyncIterator, Dict, Optional
+from urllib.parse import unquote
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .bootstrap import initialize_runtime, load_runtime_config, shutdown_runtime
@@ -18,7 +19,7 @@ from .core.logs import RequestLog, log_request
 from .api.errors import _json_error
 from .api.models import SERVER_NAME
 from .api.routes import router as api_router
-from .dashboard.routes import create_dashboard_router
+from .dashboard.api_routes import create_api_router as create_dashboard_api_router
 
 
 def _request_api_key_name(request: Request) -> str:
@@ -52,6 +53,19 @@ def _query_params(request: Request) -> Dict[str, Any]:
         else:
             result[key] = [existing, value]
     return result
+
+
+def _safe_spa_file_path(dist_dir: str, requested_path: str) -> Optional[str]:
+    root = os.path.realpath(dist_dir)
+    decoded_path = unquote(requested_path).lstrip("/")
+    if "\x00" in decoded_path:
+        return None
+    candidate = os.path.realpath(os.path.join(root, decoded_path))
+    if candidate == root or not candidate.startswith(root + os.sep):
+        return None
+    if not os.path.isfile(candidate):
+        return None
+    return candidate
 
 
 def _request_with_body(request: Request, body: bytes) -> Request:
@@ -243,7 +257,7 @@ def _wrap_streaming_log(
     response.body_iterator = logging_iterator()
 
 
-def create_app(initialize: bool = True) -> FastAPI:
+def create_app(initialize: bool = True, static_dir: Optional[str] = None) -> FastAPI:
     if initialize:
         load_runtime_config()
         initialize_runtime()
@@ -257,7 +271,7 @@ def create_app(initialize: bool = True) -> FastAPI:
     )
 
     # ---- Static files ----
-    _static_dir = os.path.join(os.path.dirname(__file__), "static")
+    _static_dir = static_dir or os.path.join(os.path.dirname(__file__), "static")
     app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
     @app.get("/favicon.ico", include_in_schema=False)
@@ -359,7 +373,35 @@ def create_app(initialize: bool = True) -> FastAPI:
 
     # ---- Include routers ----
     app.include_router(api_router)
-    app.include_router(create_dashboard_router())
+    app.include_router(create_dashboard_api_router())
+
+    # ---- SPA static files & fallback ----
+    _dist_dir = os.path.join(_static_dir, "dist")
+    _assets_dir = os.path.join(_dist_dir, "assets")
+    if os.path.isdir(_assets_dir):
+        app.mount("/assets", StaticFiles(directory=_assets_dir), name="spa-assets")
+
+    def spa_fallback_response(path: str):
+        if path == "api" or path.startswith("api/"):
+            return JSONResponse({"error": "Not found"}, status_code=404)
+        file_path = _safe_spa_file_path(_dist_dir, path)
+        if file_path is not None:
+            return FileResponse(file_path)
+        index_path = os.path.join(_dist_dir, "index.html")
+        if os.path.isfile(index_path):
+            return FileResponse(index_path)
+        return HTMLResponse(
+            "Dashboard not built. Run: cd web && npm run build",
+            status_code=503,
+        )
+
+    @app.get("/admin", include_in_schema=False)
+    async def spa_root():
+        return spa_fallback_response("")
+
+    @app.get("/admin/{path:path}", include_in_schema=False)
+    async def spa_fallback(path: str):
+        return spa_fallback_response(path)
 
     if initialize:
         async def shutdown_runtime_event() -> None:

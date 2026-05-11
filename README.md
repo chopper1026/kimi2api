@@ -279,9 +279,10 @@ app/
   core/                # 鉴权、Key 存储、请求日志、token 管理
   dashboard/           # /admin 管理面板
   kimi/                # Kimi Web 协议客户端
-  static/              # 前端静态资源
+  static/              # 前端构建产物
   config.py            # 环境变量配置
   main.py              # FastAPI 应用入口
+web/                   # React/Vite 管理面板源码
 run.py                 # 本地启动入口
 Dockerfile             # 容器镜像构建
 docker-compose.yml     # Compose 部署配置
@@ -289,10 +290,17 @@ docker-compose.yml     # Compose 部署配置
 
 ## 开发
 
+安装后端和前端依赖，构建管理面板，并运行后端测试与静态检查：
+
 ```bash
 uv sync --group dev
-uv run pytest
-uv run python -m compileall app tests run.py
+cd web
+npm ci
+npm run build
+npm run lint
+cd ..
+uv run pytest -q
+uv run ruff check .
 uv run python run.py
 ```
 
@@ -301,6 +309,21 @@ uv run python run.py
 ```bash
 uv run pytest --cov=app
 ```
+
+本地开发 React 管理面板时，建议把 FastAPI 后端固定在 `8003` 端口：
+
+```bash
+PORT=8003 uv run python run.py
+```
+
+另开终端启动 Vite：
+
+```bash
+cd web
+npm run dev
+```
+
+`web/vite.config.ts` 会把 `/admin/api`、`/v1` 和 `/healthz` 代理到 `http://localhost:8003`。生产构建时，`npm run build` 会把前端资源写入 `app/static/dist`，后端从 `/admin` 和 `/assets` 提供这些静态资源。
 
 常用检查：
 

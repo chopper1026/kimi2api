@@ -33,3 +33,7 @@ Thumbs.db
 .playwright-mcp/
 .pytest_cache/
 .ruff_cache/
+
+# Frontend
+web/node_modules/
+app/static/dist/

@@ -199,9 +199,9 @@ def sample_model_catalog(monkeypatch):
 @pytest.fixture
 def authenticated_admin_client(api_client, admin_config):
     response = api_client.post(
-        "/admin/login",
-        data={"password": "admin-password"},
-        follow_redirects=False,
+        "/admin/api/login",
+        json={"password": "admin-password"},
     )
-    assert response.status_code == 302
+    assert response.status_code == 200
+    assert response.json()["success"] is True
     return api_client

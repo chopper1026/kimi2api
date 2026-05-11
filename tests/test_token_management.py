@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import stat
 from unittest.mock import Mock
 
@@ -10,6 +9,7 @@ from app.config import Config
 from app.core import auth
 from app.core.token_manager import TokenManager
 from app.core.kimi_token_store import load_configured_kimi_token, save_kimi_token
+from app.kimi.protocol import KimiAPIError
 from app.main import create_app, main
 
 
@@ -124,18 +124,20 @@ def test_admin_can_save_token_and_replace_runtime_manager(
     tmp_data_dir,
     token_manager_store,
 ):
-    page = authenticated_admin_client.get("/admin/token")
-    csrf = re.search(r'name="csrf-token" content="([^"]+)"', page.text).group(1)
+    session = authenticated_admin_client.get("/admin/api/session")
+    csrf = session.json()["csrf_token"]
 
     response = authenticated_admin_client.post(
-        "/admin/token",
-        data={"raw_token": "new-refresh-token"},
+        "/admin/api/token",
+        json={"raw_token": "new-refresh-token"},
         headers={"X-CSRF-Token": csrf},
     )
 
     assert response.status_code == 200
-    assert "new-****" in response.text
-    assert "new-refresh-token" not in response.text
+    body = response.json()
+    assert body["success"] is True
+    assert "new-****" in body["token"]["token_preview"]
+    assert "new-refresh-token" not in body["token"]["token_preview"]
     assert token_manager_store.get() is not None
     assert token_manager_store.refresh_token() == "new-refresh-token"
 
@@ -145,17 +147,72 @@ def test_admin_can_save_token_and_replace_runtime_manager(
     assert data["token"] == "new-refresh-token"
 
 
-def test_token_editor_is_hidden_until_requested(authenticated_admin_client):
-    panel = authenticated_admin_client.get("/admin/token")
+def test_admin_token_save_empty_token_returns_400(authenticated_admin_client):
+    session = authenticated_admin_client.get("/admin/api/session")
+    csrf = session.json()["csrf_token"]
 
-    assert panel.status_code == 200
-    assert 'rel="icon"' in panel.text
-    assert "/static/favicon.svg" in panel.text
-    assert 'name="raw_token"' not in panel.text
-    assert "配置 Token" in panel.text
+    response = authenticated_admin_client.post(
+        "/admin/api/token",
+        json={"raw_token": ""},
+        headers={"X-CSRF-Token": csrf},
+    )
 
-    editor = authenticated_admin_client.get("/admin/token/edit")
+    assert response.status_code == 400
+    assert response.json()["success"] is False
+    assert response.json()["error"] == "Token 不能为空"
 
-    assert editor.status_code == 200
-    assert 'name="raw_token"' in editor.text
-    assert "保存 Token" in editor.text
+
+def test_admin_token_refresh_without_token_returns_400(
+    authenticated_admin_client,
+    token_manager_store,
+):
+    session = authenticated_admin_client.get("/admin/api/session")
+    csrf = session.json()["csrf_token"]
+
+    assert token_manager_store.get() is None
+
+    response = authenticated_admin_client.post(
+        "/admin/api/token/refresh",
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["success"] is False
+    assert response.json()["error"] == "请先保存 Token"
+
+
+def test_admin_token_refresh_upstream_failure_returns_dashboard_json(
+    authenticated_admin_client,
+    monkeypatch,
+):
+    class FailingManager:
+        async def invalidate_and_retry(self):
+            raise KimiAPIError("upstream refresh failed")
+
+    monkeypatch.setattr(
+        "app.dashboard.api_routes.get_token_manager",
+        lambda: FailingManager(),
+    )
+    session = authenticated_admin_client.get("/admin/api/session")
+    csrf = session.json()["csrf_token"]
+
+    response = authenticated_admin_client.post(
+        "/admin/api/token/refresh",
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 502
+    body = response.json()
+    assert body["success"] is False
+    assert body["error"] == "upstream refresh failed"
+    assert isinstance(body["token"], dict)
+
+
+def test_token_info_returns_current_state(authenticated_admin_client):
+    response = authenticated_admin_client.get("/admin/api/token")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "token_type" in body
+    assert "token_healthy" in body
+    assert "token_status" in body

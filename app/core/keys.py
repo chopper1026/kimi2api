@@ -77,12 +77,23 @@ def get_key(key: str) -> Optional[ApiKey]:
     return _key_store.get(key)
 
 
+def _next_auto_name() -> str:
+    existing_names = {k.name for k in _key_store.values()}
+    n = len(_key_store) + 1
+    name = f"Key {n}"
+    while name in existing_names:
+        n += 1
+        name = f"Key {n}"
+    return name
+
+
 def create_key(name: Optional[str] = None) -> ApiKey:
     raw = os.urandom(16).hex()
     key_str = f"sk-{raw}"
     if not name:
-        name = f"Key {len(_key_store) + 1}"
-    name = name.strip()[:64]
+        name = _next_auto_name()
+    else:
+        name = name.strip()[:64]
     api_key = ApiKey(
         key=key_str,
         name=name,

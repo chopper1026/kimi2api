@@ -26,13 +26,13 @@ def _log(request_id: str, timestamp: float = 1.0):
 def test_fmt_time_uses_configured_timezone(config_override):
     config_override(TIMEZONE="Asia/Shanghai")
 
-    assert fmt_time(1) == "1970-01-01 08:00:01 Asia/Shanghai"
+    assert fmt_time(1) == "1970-01-01 08:00:01"
 
 
 def test_fmt_time_falls_back_to_shanghai_for_invalid_timezone(config_override):
     config_override(TIMEZONE="Invalid/Timezone")
 
-    assert fmt_time(1) == "1970-01-01 08:00:01 Asia/Shanghai"
+    assert fmt_time(1) == "1970-01-01 08:00:01"
 
 
 def test_log_list_and_detail_use_configured_timezone(tmp_data_dir, config_override):
@@ -44,7 +44,7 @@ def test_log_list_and_detail_use_configured_timezone(tmp_data_dir, config_overri
 
     assert listing[0]["time_str"] == "01-01 08:00:01"
     assert detail is not None
-    assert detail["time_str"] == "1970-01-01 08:00:01 Asia/Shanghai"
+    assert detail["time_str"] == "1970-01-01 08:00:01"
 
 
 def test_config_load_prefers_timezone_and_falls_back_to_tz(monkeypatch):

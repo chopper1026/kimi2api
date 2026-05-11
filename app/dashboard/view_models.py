@@ -38,9 +38,9 @@ def _local_datetime(ts: float) -> datetime:
 def fmt_time(ts: float) -> str:
     if ts == 0:
         return "-"
-    timezone, timezone_name = _display_timezone()
+    timezone, _ = _display_timezone()
     dt = datetime.fromtimestamp(ts, tz=timezone)
-    return dt.strftime("%Y-%m-%d %H:%M:%S ") + timezone_name
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def fmt_duration(seconds: float) -> str:
