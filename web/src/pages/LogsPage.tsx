@@ -124,7 +124,7 @@ export default function LogsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="max-w-[1320px] space-y-4">
       {/* Filters */}
       <div className="rounded-lg border border-border/60 bg-card p-4 shadow-sm">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(220px,1.4fr)_minmax(132px,0.8fr)_minmax(132px,0.8fr)_minmax(150px,1fr)_minmax(150px,1fr)_minmax(150px,1fr)]">
@@ -214,7 +214,7 @@ export default function LogsPage() {
         </div>
       ) : (
         <>
-          <div className="max-w-[1320px] rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden">
+          <div className="rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden">
             <Table className="min-w-[900px] table-fixed">
               <colgroup>
                 <col className="w-[8%]" />
@@ -315,7 +315,7 @@ export default function LogsPage() {
           </div>
 
           {pagination && (
-            <div className="flex max-w-[1320px] items-center justify-between">
+            <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
                 第 {pagination.start_index}-{pagination.end_index} 条，共{" "}
                 {pagination.total} 条
