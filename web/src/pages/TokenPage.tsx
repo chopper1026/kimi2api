@@ -110,7 +110,7 @@ export default function TokenPage() {
   }
 
   return (
-    <div className="max-w-[820px] space-y-5">
+    <div className="max-w-[492px] space-y-5">
       {tokenError && (
         <Alert variant="destructive">
           <AlertDescription>{tokenError}</AlertDescription>
