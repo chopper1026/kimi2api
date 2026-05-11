@@ -110,7 +110,7 @@ export default function TokenPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="max-w-[1040px] space-y-5">
       {tokenError && (
         <Alert variant="destructive">
           <AlertDescription>{tokenError}</AlertDescription>
@@ -118,52 +118,8 @@ export default function TokenPage() {
       )}
 
       <Card className="border-border/60 shadow-sm">
-        <CardHeader className="pb-3">
+        <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-sm font-medium">Token 状态</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingToken ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <LoadingSpinner size={16} />
-              <span className="text-sm">加载中...</span>
-            </div>
-          ) : tokenInfo ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-xs text-muted-foreground">Token 类型</p>
-                <p className="mt-0.5 text-sm font-medium">{tokenInfo.token_type}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">过期时间</p>
-                <p className="mt-0.5 text-sm font-medium">{tokenInfo.token_expires}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Token 预览</p>
-                <p className="mt-0.5 font-mono text-xs">{tokenInfo.token_preview}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">状态</p>
-                <div className="mt-0.5">
-                  <Badge
-                    variant={tokenInfo.token_healthy ? "default" : "destructive"}
-                    className="text-xs"
-                  >
-                    {tokenInfo.token_status}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">无 Token 信息</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/60 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">操作</CardTitle>
-        </CardHeader>
-        <CardContent>
           <div className="flex flex-wrap gap-2">
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
               <DialogTrigger render={<Button variant="outline" size="sm" />}>
@@ -222,6 +178,42 @@ export default function TokenPage() {
               验证 Token
             </Button>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {loadingToken ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <LoadingSpinner size={16} />
+              <span className="text-sm">加载中...</span>
+            </div>
+          ) : tokenInfo ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs text-muted-foreground">Token 类型</p>
+                <p className="mt-0.5 text-sm font-medium">{tokenInfo.token_type}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">过期时间</p>
+                <p className="mt-0.5 text-sm font-medium">{tokenInfo.token_expires}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Token 预览</p>
+                <p className="mt-0.5 font-mono text-xs">{tokenInfo.token_preview}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">状态</p>
+                <div className="mt-0.5">
+                  <Badge
+                    variant={tokenInfo.token_healthy ? "default" : "destructive"}
+                    className="text-xs"
+                  >
+                    {tokenInfo.token_status}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">无 Token 信息</p>
+          )}
 
           {refreshSuccess && (
             <Alert className="mt-3">
