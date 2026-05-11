@@ -189,6 +189,112 @@ def _sanitize_headers(headers: Dict[str, Any]) -> Dict[str, str]:
     return result
 
 
+def _response_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    if isinstance(value, list):
+        return "".join(_response_text(item) for item in value)
+    if isinstance(value, dict):
+        for key in ("text", "content"):
+            text = _response_text(value.get(key))
+            if text:
+                return text
+    return ""
+
+
+def _parse_responses_output(
+    output: Any,
+    *,
+    include_output_text: bool,
+) -> Tuple[str, str]:
+    content_parts: List[str] = []
+    reasoning_parts: List[str] = []
+
+    if not isinstance(output, list):
+        return "", ""
+
+    for item in output:
+        if not isinstance(item, dict):
+            continue
+
+        item_type = item.get("type")
+        if item_type == "reasoning":
+            text = _response_text(item.get("content") or item.get("text"))
+            if text:
+                reasoning_parts.append(text)
+            continue
+        if item_type == "output_text" and include_output_text:
+            text = _response_text(item.get("text") or item.get("content"))
+            if text:
+                content_parts.append(text)
+            continue
+
+        item_content = item.get("content")
+        if not isinstance(item_content, list):
+            continue
+        for part in item_content:
+            if not isinstance(part, dict):
+                continue
+            part_type = part.get("type")
+            if part_type == "reasoning":
+                text = _response_text(part.get("content") or part.get("text"))
+                if text:
+                    reasoning_parts.append(text)
+            elif part_type == "output_text" and include_output_text:
+                text = _response_text(part.get("text") or part.get("content"))
+                if text:
+                    content_parts.append(text)
+
+    return "".join(content_parts), "".join(reasoning_parts)
+
+
+def _parse_json_response_body(raw_body: str) -> Tuple[str, str]:
+    try:
+        data = json.loads(raw_body)
+    except Exception:
+        return "", ""
+
+    if not isinstance(data, dict):
+        return "", ""
+
+    content_parts: List[str] = []
+    reasoning_parts: List[str] = []
+
+    choices = data.get("choices")
+    if isinstance(choices, list):
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            message = choice.get("message")
+            if not isinstance(message, dict):
+                continue
+            content = _response_text(message.get("content"))
+            reasoning = _response_text(message.get("reasoning_content"))
+            if content:
+                content_parts.append(content)
+            if reasoning:
+                reasoning_parts.append(reasoning)
+
+    output_text = _response_text(data.get("output_text"))
+    if output_text:
+        content_parts.append(output_text)
+
+    output_content, output_reasoning = _parse_responses_output(
+        data.get("output"),
+        include_output_text=not bool(output_text),
+    )
+    if output_content:
+        content_parts.append(output_content)
+    if output_reasoning:
+        reasoning_parts.append(output_reasoning)
+
+    return "".join(content_parts), "".join(reasoning_parts)
+
+
 def _parse_stream_body(raw_body: str) -> Tuple[str, str]:
     content_parts: List[str] = []
     reasoning_parts: List[str] = []
@@ -232,8 +338,14 @@ def _prepare_entry(entry: RequestLog) -> RequestLog:
 
     parsed_text = entry.parsed_response_text
     parsed_reasoning = entry.parsed_reasoning_content
-    if entry.is_stream and raw_stream_body and not (parsed_text or parsed_reasoning):
-        parsed_text, parsed_reasoning = _parse_stream_body(raw_stream_body)
+    if entry.is_stream and raw_stream_body and not (parsed_text and parsed_reasoning):
+        stream_text, stream_reasoning = _parse_stream_body(raw_stream_body)
+        parsed_text = parsed_text or stream_text
+        parsed_reasoning = parsed_reasoning or stream_reasoning
+    if not entry.is_stream and entry.response_body and not (parsed_text and parsed_reasoning):
+        body_text, body_reasoning = _parse_json_response_body(entry.response_body)
+        parsed_text = parsed_text or body_text
+        parsed_reasoning = parsed_reasoning or body_reasoning
 
     return replace(
         entry,

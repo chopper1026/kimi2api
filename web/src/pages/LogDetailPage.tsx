@@ -66,6 +66,9 @@ export default function LogDetailPage() {
   }
 
   const isSuccess = data.status_code < 400
+  const shouldShowParsedResponse = Boolean(
+    data.is_stream || data.parsed_response_text || data.parsed_reasoning_content,
+  )
 
   const parsedHeaders = data.request_headers
     ? parseJsonObject(data.request_headers)
@@ -259,29 +262,29 @@ export default function LogDetailPage() {
               <p className="text-[11px] text-muted-foreground">无数据</p>
             )}
           </div>
-          {data.parsed_response_text && (
-            <div>
-              <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
-                响应内容
-              </p>
-              <div className="rounded-lg bg-muted/50 p-3 overflow-auto max-h-96">
-                <pre className="font-mono text-[11px] whitespace-pre-wrap break-all">
-                  {data.parsed_response_text}
-                </pre>
+          {shouldShowParsedResponse && (
+            <>
+              <div>
+                <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
+                  解析正文
+                </p>
+                <div className="rounded-lg bg-muted/50 p-3 overflow-auto max-h-96">
+                  <pre className="font-mono text-[11px] whitespace-pre-wrap break-all">
+                    {data.parsed_response_text || "-"}
+                  </pre>
+                </div>
               </div>
-            </div>
-          )}
-          {data.parsed_reasoning_content && (
-            <div>
-              <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
-                推理内容
-              </p>
-              <div className="rounded-lg bg-muted/50 p-3 overflow-auto max-h-96">
-                <pre className="font-mono text-[11px] whitespace-pre-wrap break-all">
-                  {data.parsed_reasoning_content}
-                </pre>
+              <div>
+                <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
+                  思维链
+                </p>
+                <div className="rounded-lg bg-muted/50 p-3 overflow-auto max-h-96">
+                  <pre className="font-mono text-[11px] whitespace-pre-wrap break-all">
+                    {data.parsed_reasoning_content || "-"}
+                  </pre>
+                </div>
               </div>
-            </div>
+            </>
           )}
         </CardContent>
       </Card>

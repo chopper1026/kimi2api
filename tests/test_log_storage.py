@@ -102,6 +102,57 @@ def test_stream_response_raw_body_is_parsed_but_not_persisted(tmp_data_dir, conf
     assert [entry.request_id for entry in results] == ["req-stream"]
 
 
+def test_non_stream_chat_response_body_is_parsed_but_not_persisted(
+    tmp_data_dir,
+    config_override,
+):
+    logs.log_request(
+        _entry(
+            "req-non-stream-chat",
+            is_stream=False,
+            response_body=(
+                '{"id":"chatcmpl-test","choices":[{"message":{'
+                '"role":"assistant","content":"最终答案",'
+                '"reasoning_content":"先分析"}}]}'
+            ),
+            raw_stream_body="",
+        )
+    )
+
+    detail = logs.get_log("req-non-stream-chat")
+    assert detail is not None
+    assert detail.response_body == ""
+    assert detail.raw_stream_body == ""
+    assert detail.parsed_response_text == "最终答案"
+    assert detail.parsed_reasoning_content == "先分析"
+
+
+def test_non_stream_responses_body_is_parsed_but_not_persisted(
+    tmp_data_dir,
+    config_override,
+):
+    logs.log_request(
+        _entry(
+            "req-non-stream-responses",
+            path="/v1/responses",
+            is_stream=False,
+            response_body=(
+                '{"id":"resp-test","output_text":"最终正文","output":[{"type":"message",'
+                '"content":[{"type":"reasoning","content":"思考过程"},'
+                '{"type":"output_text","text":"最终正文"}]}]}'
+            ),
+            raw_stream_body="",
+        )
+    )
+
+    detail = logs.get_log("req-non-stream-responses")
+    assert detail is not None
+    assert detail.response_body == ""
+    assert detail.raw_stream_body == ""
+    assert detail.parsed_response_text == "最终正文"
+    assert detail.parsed_reasoning_content == "思考过程"
+
+
 def test_request_logs_can_be_filtered(tmp_data_dir, config_override):
     config_override(REQUEST_LOG_RETENTION=10)
     logs.log_request(_entry("req-success", model="kimi-k2.5"))
