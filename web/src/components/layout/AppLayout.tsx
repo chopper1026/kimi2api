@@ -33,7 +33,7 @@ const pageTitles: Record<string, string> = {
 function UserMenu({ onLogout }: { onLogout: () => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const { theme, options, setTheme } = useDashboardTheme()
+  const { mode, theme, options, setMode } = useDashboardTheme()
 
   useEffect(() => {
     if (!open) return
@@ -68,18 +68,19 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
             </div>
             <div className="space-y-0.5">
               {options.map((option) => {
-                const selected = option.id === theme.id
+                const selected = option.mode === mode
+                const description =
+                  option.mode === "system"
+                    ? `当前：${theme.appearance === "dark" ? "深色" : "浅色"}`
+                    : option.description
                 return (
                   <button
-                    key={option.id}
+                    key={option.mode}
                     type="button"
-                    disabled={!option.enabled}
-                    onClick={() => setTheme(option.id)}
+                    onClick={() => setMode(option.mode)}
                     className={cn(
                       "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left transition-colors",
-                      option.enabled
-                        ? "text-popover-foreground hover:bg-accent"
-                        : "cursor-not-allowed text-muted-foreground/45",
+                      "text-popover-foreground hover:bg-accent",
                       selected && "bg-accent text-accent-foreground",
                     )}
                   >
@@ -88,7 +89,7 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
                         {option.label}
                       </span>
                       <span className="block text-[10px] text-muted-foreground">
-                        {option.description}
+                        {description}
                       </span>
                     </span>
                     {selected && <Check className="size-3.5 text-primary" />}

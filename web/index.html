@@ -1,7 +1,27 @@
 <!doctype html>
-<html lang="zh-CN" class="dark" data-theme="tungsten-dark">
+<html lang="zh-CN" data-theme="porcelain-moss">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (() => {
+        const storageKey = "kimi2api.admin.theme"
+        let mode = "system"
+        try {
+          mode = localStorage.getItem(storageKey) || "system"
+        } catch {
+          mode = "system"
+        }
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+        const theme =
+          mode === "tungsten-dark" || (mode === "system" && prefersDark)
+            ? "tungsten-dark"
+            : "porcelain-moss"
+        const root = document.documentElement
+        root.dataset.theme = theme
+        root.classList.toggle("dark", theme === "tungsten-dark")
+        root.style.colorScheme = theme === "tungsten-dark" ? "dark" : "light"
+      })()
+    </script>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kimi2API Dashboard</title>
