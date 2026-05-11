@@ -9,13 +9,12 @@ export function usePolling<T>(
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const generationRef = useRef(0)
-  const inFlightRef = useRef<Promise<void> | null>(null)
+  const inFlightRef = useRef<{
+    generation: number
+    promise: Promise<void>
+  } | null>(null)
 
-  const runRefresh = useCallback((generation: number) => {
-    if (inFlightRef.current) {
-      return inFlightRef.current
-    }
-
+  const startRefresh = useCallback((generation: number) => {
     const request = (async () => {
       try {
         if (generationRef.current === generation) {
@@ -37,14 +36,28 @@ export function usePolling<T>(
       }
     })()
 
-    inFlightRef.current = request
+    inFlightRef.current = { generation, promise: request }
     void request.finally(() => {
-      if (inFlightRef.current === request) {
+      if (inFlightRef.current?.promise === request) {
         inFlightRef.current = null
       }
     })
     return request
   }, [fetcher])
+
+  const runRefresh = useCallback((generation: number) => {
+    const activeRequest = inFlightRef.current
+    if (!activeRequest) {
+      return startRefresh(generation)
+    }
+    if (activeRequest.generation === generation) {
+      return activeRequest.promise
+    }
+    return activeRequest.promise.then(() => {
+      if (generationRef.current !== generation) return
+      return startRefresh(generation)
+    })
+  }, [startRefresh])
 
   const refresh = useCallback(() => {
     return runRefresh(generationRef.current)
