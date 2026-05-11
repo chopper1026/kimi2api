@@ -23,8 +23,9 @@ def test_api_docs_are_not_public(api_client, path):
     assert response.status_code == 404
 
 
-def test_favicon_is_available(api_client):
-    response = api_client.get("/favicon.ico")
+@pytest.mark.parametrize("path", ["/favicon.ico", "/favicon.svg"])
+def test_favicon_is_available(api_client, path):
+    response = api_client.get(path)
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/svg+xml"

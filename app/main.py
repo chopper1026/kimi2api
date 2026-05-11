@@ -275,6 +275,7 @@ def create_app(initialize: bool = True, static_dir: Optional[str] = None) -> Fas
     app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
     @app.get("/favicon.ico", include_in_schema=False)
+    @app.get("/favicon.svg", include_in_schema=False)
     async def favicon() -> FileResponse:
         return FileResponse(
             os.path.join(_static_dir, "favicon.svg"),
