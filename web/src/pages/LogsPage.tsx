@@ -214,17 +214,17 @@ export default function LogsPage() {
         </div>
       ) : (
         <>
-          <div className="rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden">
+          <div className="max-w-[1320px] rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden">
             <Table className="min-w-[900px] table-fixed">
               <colgroup>
-                <col className="w-28" />
-                <col className="w-28" />
-                <col className="w-32" />
-                <col />
-                <col className="w-36" />
-                <col className="w-[88px]" />
-                <col className="w-20" />
-                <col className="w-20" />
+                <col className="w-[8%]" />
+                <col className="w-[8%]" />
+                <col className="w-[8%]" />
+                <col className="w-[35%]" />
+                <col className="w-[18%]" />
+                <col className="w-[7%]" />
+                <col className="w-[7%]" />
+                <col className="w-[9%]" />
               </colgroup>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -315,7 +315,7 @@ export default function LogsPage() {
           </div>
 
           {pagination && (
-            <div className="flex items-center justify-between">
+            <div className="flex max-w-[1320px] items-center justify-between">
               <p className="text-xs text-muted-foreground">
                 第 {pagination.start_index}-{pagination.end_index} 条，共{" "}
                 {pagination.total} 条
