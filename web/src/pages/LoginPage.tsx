@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { LogoMark } from "@/components/shared/LogoMark"
 
 export default function LoginPage() {
   const [password, setPassword] = useState("")
@@ -31,19 +32,7 @@ export default function LoginPage() {
     <div className="flex h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center">
-          <div className="size-11 rounded-xl bg-[#020617] p-1.5 shadow-sm">
-            <svg viewBox="0 0 64 64" className="size-full">
-              <defs>
-                <linearGradient id="lg-mark" x1="14" y1="12" x2="50" y2="52" gradientUnits="userSpaceOnUse">
-                  <stop offset="0" stopColor="#60a5fa"/>
-                  <stop offset="1" stopColor="#22c55e"/>
-                </linearGradient>
-              </defs>
-              <path d="M20 17v30M23 32 39 18M23 32l17 15" fill="none" stroke="url(#lg-mark)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M39 31h10m0 0-4-4m4 4-4 4" fill="none" stroke="#93c5fd" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
-              <circle cx="48" cy="44" r="3.5" fill="#22c55e"/>
-            </svg>
-          </div>
+          <LogoMark className="size-11 p-1.5" />
           <h1 className="mt-4 text-lg font-semibold tracking-tight">
             Kimi2API
           </h1>

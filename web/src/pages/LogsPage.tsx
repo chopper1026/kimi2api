@@ -268,7 +268,7 @@ export default function LogsPage() {
                         </div>
                       )}
                       {log.upstream_summary && (
-                        <div className="mt-0.5 text-[11px] text-amber-600 truncate max-w-48">
+                        <div className="mt-0.5 text-[11px] text-warning truncate max-w-48">
                           {log.upstream_summary}
                         </div>
                       )}
@@ -282,7 +282,7 @@ export default function LogsPage() {
                           className={`text-xs font-medium ${
                             log.status_code >= 400
                               ? "text-destructive"
-                              : "text-emerald-600"
+                              : "text-success"
                           }`}
                         >
                           {log.status_code}

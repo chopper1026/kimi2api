@@ -34,7 +34,7 @@ function JsonLabel({
 
   return (
     <>
-      <span className="text-sky-700 dark:text-sky-300">
+      <span className="text-json-key">
         {JSON.stringify(label)}
       </span>
       <span className="text-muted-foreground">:</span>
@@ -49,19 +49,19 @@ function JsonPrimitive({ value }: { value: unknown }) {
 
   if (typeof value === "string") {
     return (
-      <span className="break-all text-emerald-700 dark:text-emerald-300">
+      <span className="break-all text-json-string">
         {JSON.stringify(value)}
       </span>
     )
   }
 
   if (typeof value === "number") {
-    return <span className="text-amber-700 dark:text-amber-300">{value}</span>
+    return <span className="text-json-number">{value}</span>
   }
 
   if (typeof value === "boolean") {
     return (
-      <span className="text-violet-700 dark:text-violet-300">
+      <span className="text-json-boolean">
         {String(value)}
       </span>
     )

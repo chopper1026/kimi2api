@@ -101,8 +101,8 @@ export default function KeysPage() {
       )}
 
       {newKey && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
-          <p className="mb-1.5 text-xs font-medium text-emerald-600">
+        <div className="rounded-lg border border-success/35 bg-success-muted/25 px-4 py-3">
+          <p className="mb-1.5 text-xs font-medium text-success">
             Key 创建成功，请立即保存（仅显示一次）：
           </p>
           <div className="flex items-center gap-2">
@@ -212,7 +212,7 @@ export default function KeysPage() {
                       variant="destructive"
                       size="xs"
                       onClick={() => handleDelete(item.key)}
-                      className="h-7 bg-destructive px-2.5 text-[11px] text-primary-foreground hover:bg-destructive/90"
+                      className="h-7 px-2.5 text-[11px]"
                     >
                       删除
                     </Button>

@@ -97,7 +97,7 @@ export default function LogDetailPage() {
             <div className="mt-1 flex items-center gap-2">
               <span
                 className={`text-xl font-bold ${
-                  isSuccess ? "text-emerald-600" : "text-destructive"
+                  isSuccess ? "text-success" : "text-destructive"
                 }`}
               >
                 {data.status_code}
@@ -171,7 +171,7 @@ export default function LogDetailPage() {
             </div>
           </div>
           {data.upstream_summary && (
-            <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-600">
+            <div className="mt-3 rounded-lg border border-warning/35 bg-warning-muted/25 px-3 py-2 text-xs text-warning">
               <span className="font-medium">上游信息：</span>
               {data.upstream_summary}
             </div>
@@ -214,7 +214,7 @@ export default function LogDetailPage() {
             <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
               请求体
               {data.request_body_truncated && (
-                <span className="ml-2 text-amber-600">（已截断）</span>
+                <span className="ml-2 text-warning">（已截断）</span>
               )}
             </p>
             {data.request_body_is_json ? (
