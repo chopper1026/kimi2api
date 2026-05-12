@@ -1,7 +1,7 @@
 # Kimi2API
 
 Kimi2API 是一个基于 Kimi Web 协议封装的 OpenAI 兼容 API 服务。它把 Kimi 的聊天能力转换成常见的 `/v1` 接口，方便 OpenAI SDK、Cherry Studio、LobeChat、NextChat、one-api 风格客户端接入。
-（简单来说，这就是用来聊天、玩酒馆的，没有做toolcall之类的对编程的优化，因为2api的能力大家都懂的，嘿嘿）
+_（简单来说，这就是用来玩酒馆的，没有做toolcall之类编程方向的优化，因为2api的能力懂得都懂）_
 
 项目内置 React 管理面板，支持 Kimi 账号池、对外 API Key、请求日志、运行概览和基础运维操作。
 
