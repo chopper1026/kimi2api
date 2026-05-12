@@ -23,7 +23,7 @@ from ..core.kimi_account_store import (
 from ..core.keys import create_key, delete_key
 from ..core.kimi_token_store import save_kimi_token
 from ..core.token_manager import get_token_manager, replace_token_manager
-from ..kimi.protocol import KIMI_SUBSCRIPTION_PATH
+from ..kimi.protocol import KIMI_SUBSCRIPTION_PATH, KimiAPIError
 from ..kimi.transport import build_kimi_headers
 from .view_models import accounts_info, dashboard_stats, key_list, log_detail, log_page, token_info
 
@@ -328,6 +328,15 @@ def create_api_router() -> APIRouter:
                 subscription = response.json() if valid else {"status_code": response.status_code}
                 if valid:
                     pool.record_success(runtime)
+                else:
+                    pool.record_failure(
+                        runtime,
+                        KimiAPIError(
+                            f"Kimi token validation failed with status {response.status_code}",
+                            upstream_status_code=response.status_code,
+                            upstream_error_type="token_validation_failed",
+                        ),
+                    )
         except Exception as exc:
             if "runtime" in locals():
                 pool.record_failure(runtime, exc)

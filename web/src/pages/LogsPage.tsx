@@ -71,6 +71,29 @@ function formatStreamFilter(value: unknown) {
   return streamFilterLabels[value] ?? value
 }
 
+function LogStatusPill({ log }: { log: LogEntry }) {
+  const isError = log.status_code >= 400
+
+  return (
+    <div className="flex items-center">
+      <span
+        className={`inline-flex h-6 min-w-11 items-center justify-center gap-1 rounded-full border border-border/55 px-2 text-[11px] font-semibold tabular-nums ${
+          isError
+            ? "bg-destructive/10 text-destructive"
+            : "bg-success-muted/45 text-success"
+        }`}
+      >
+        {log.status_code}
+        {log.is_stream && (
+          <span className="border-l border-current/20 pl-1 text-[10px] font-medium leading-none opacity-80">
+            流
+          </span>
+        )}
+      </span>
+    </div>
+  )
+}
+
 function LogMobileCard({
   log,
   onOpen,
@@ -346,116 +369,102 @@ export default function LogsPage() {
             ))}
           </div>
 
-          <div className="hidden md:block rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden">
-              <Table className="min-w-[980px] table-fixed">
-              <colgroup>
-                <col className="w-[8%]" />
-                <col className="w-[8%]" />
-                <col className="w-[12%]" />
-                <col className="w-[12%]" />
-                <col className="w-[27%]" />
-                <col className="w-[12%]" />
-                <col className="w-[7%]" />
-                <col className="w-[7%]" />
-                <col className="w-[7%]" />
-              </colgroup>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs">时间</TableHead>
-                  <TableHead className="text-xs">Request ID</TableHead>
-                  <TableHead className="text-xs">Key</TableHead>
-                  <TableHead className="text-xs">Kimi 账号</TableHead>
-                  <TableHead className="text-xs">请求</TableHead>
-                  <TableHead className="text-xs">模型</TableHead>
-                  <TableHead className="text-xs">状态</TableHead>
-                  <TableHead className="text-xs">耗时</TableHead>
-                  <TableHead className="text-left text-xs">操作</TableHead>
+          <Table
+            containerClassName="hidden md:block max-h-[620px]"
+            className="min-w-[980px] table-fixed"
+          >
+            <colgroup>
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[27%]" />
+              <col className="w-[12%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
+            </colgroup>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="text-xs">时间</TableHead>
+                <TableHead className="text-xs">Request ID</TableHead>
+                <TableHead className="text-xs">Key</TableHead>
+                <TableHead className="text-xs">Kimi 账号</TableHead>
+                <TableHead className="text-xs">请求</TableHead>
+                <TableHead className="text-xs">模型</TableHead>
+                <TableHead className="text-xs">状态</TableHead>
+                <TableHead className="text-xs">耗时</TableHead>
+                <TableHead className="text-left text-xs">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {logs.map((log) => (
+                <TableRow key={log.request_id}>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {log.time_str}
+                  </TableCell>
+                  <TableCell>
+                    <code
+                      className="block truncate text-[11px] text-muted-foreground"
+                      title={log.request_id}
+                    >
+                      {requestIdPreview(log)}
+                    </code>
+                  </TableCell>
+                  <TableCell
+                    className="max-w-0 truncate text-xs text-muted-foreground"
+                    title={log.api_key_name || "-"}
+                  >
+                    {log.api_key_name || "-"}
+                  </TableCell>
+                  <TableCell
+                    className="max-w-0 truncate text-xs text-muted-foreground"
+                    title={log.kimi_account_name || "-"}
+                  >
+                    {log.kimi_account_name || "-"}
+                  </TableCell>
+                  <TableCell>
+                    <div className="truncate text-xs">
+                      <span className="font-medium text-muted-foreground">
+                        {log.method}
+                      </span>{" "}
+                      {log.path}
+                    </div>
+                    {log.error_message && (
+                      <div className="mt-0.5 text-[11px] text-destructive truncate max-w-48">
+                        {log.error_message}
+                      </div>
+                    )}
+                    {log.upstream_summary && (
+                      <div className="mt-0.5 text-[11px] text-warning truncate max-w-48">
+                        {log.upstream_summary}
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="truncate text-xs text-muted-foreground">
+                    {logModelLabel(log)}
+                  </TableCell>
+                  <TableCell>
+                    <LogStatusPill log={log} />
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {log.duration_display}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => navigate(`/admin/logs/${log.request_id}`)}
+                      title="查看详情"
+                      className="h-7 px-2.5 text-[11px]"
+                    >
+                      详情
+                    </Button>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {logs.map((log) => (
-                  <TableRow key={log.request_id}>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {log.time_str}
-                    </TableCell>
-                    <TableCell>
-                      <code
-                        className="block truncate text-[11px] text-muted-foreground"
-                        title={log.request_id}
-                      >
-                        {requestIdPreview(log)}
-                      </code>
-                    </TableCell>
-                    <TableCell
-                      className="max-w-0 truncate text-xs text-muted-foreground"
-                      title={log.api_key_name || "-"}
-                    >
-                      {log.api_key_name || "-"}
-                    </TableCell>
-                    <TableCell
-                      className="max-w-0 truncate text-xs text-muted-foreground"
-                      title={log.kimi_account_name || "-"}
-                    >
-                      {log.kimi_account_name || "-"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="truncate text-xs">
-                        <span className="font-medium text-muted-foreground">
-                          {log.method}
-                        </span>{" "}
-                        {log.path}
-                      </div>
-                      {log.error_message && (
-                        <div className="mt-0.5 text-[11px] text-destructive truncate max-w-48">
-                          {log.error_message}
-                        </div>
-                      )}
-                      {log.upstream_summary && (
-                        <div className="mt-0.5 text-[11px] text-warning truncate max-w-48">
-                          {log.upstream_summary}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="truncate text-xs text-muted-foreground">
-                      {logModelLabel(log)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <span
-                          className={`text-xs font-medium ${
-                            log.status_code >= 400
-                              ? "text-destructive"
-                              : "text-success"
-                          }`}
-                        >
-                          {log.status_code}
-                        </span>
-                        {log.is_stream && (
-                          <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                            流式
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {log.duration_display}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="xs"
-                        onClick={() => navigate(`/admin/logs/${log.request_id}`)}
-                        title="查看详情"
-                        className="h-7 px-2.5 text-[11px]"
-                      >
-                        详情
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+              ))}
+            </TableBody>
+          </Table>
 
           {pagination && (
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

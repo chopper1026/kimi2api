@@ -385,3 +385,46 @@ def test_admin_refresh_jwt_account_does_not_mark_account_unhealthy(
 
     listing = authenticated_admin_client.get("/admin/api/tokens").json()
     assert listing["accounts"][0]["token_healthy"] is True
+
+
+def test_admin_validate_marks_rejected_access_token_unhealthy(
+    authenticated_admin_client,
+    monkeypatch,
+):
+    class RejectingTransport:
+        def __init__(self, *, base_url=None, **_kwargs):
+            self.base_url = (base_url or "https://kimi.example.test").rstrip("/")
+
+        async def request(self, method, path_or_url, **_kwargs):
+            return httpx.Response(401, json={"error": "invalid token"})
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr(
+        "app.core.kimi_account_pool.KimiTransport",
+        RejectingTransport,
+    )
+
+    session = authenticated_admin_client.get("/admin/api/session")
+    csrf = session.json()["csrf_token"]
+
+    created = authenticated_admin_client.post(
+        "/admin/api/tokens",
+        json={"name": "Expired Upstream", "raw_token": _jwt_access_token()},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    account_id = created["account"]["id"]
+
+    response = authenticated_admin_client.get(f"/admin/api/tokens/{account_id}/validate")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["valid"] is False
+    assert body["subscription"]["status_code"] == 401
+    assert body["account"]["token_healthy"] is False
+    assert body["account"]["token_status"] == "异常，需刷新或验证"
+
+    listing = authenticated_admin_client.get("/admin/api/tokens").json()
+    assert listing["summary"]["healthy"] == 0
+    assert listing["summary"]["unhealthy"] == 1

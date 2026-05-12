@@ -31,7 +31,10 @@ import {
   DialogClose,
 } from "@/components/ui/dialog"
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner"
+import { PaginationControls } from "@/components/shared/PaginationControls"
 import { TokenStatusSkeleton } from "@/components/shared/PageSkeletons"
+
+const ACCOUNTS_PAGE_SIZE = 5
 
 interface AccountFormState {
   id?: string
@@ -125,6 +128,7 @@ export default function TokenPage() {
     account: string
     result: TokenValidation
   } | null>(null)
+  const [accountPage, setAccountPage] = useState(1)
 
   const applyAccounts = (result: {
     accounts: KimiAccountInfo[]
@@ -169,6 +173,7 @@ export default function TokenPage() {
     setSaving(true)
     setSaveError(null)
     try {
+      const isEditing = Boolean(form.id)
       const payload = {
         name: form.name.trim(),
         enabled: form.enabled,
@@ -186,6 +191,9 @@ export default function TokenPage() {
           })
       if (!result.success) throw new Error(result.error || "保存失败")
       applyAccounts(result)
+      if (!isEditing) {
+        setAccountPage(Math.max(Math.ceil(result.accounts.length / ACCOUNTS_PAGE_SIZE), 1))
+      }
       setEditOpen(false)
       setForm(blankForm())
     } catch (err: unknown) {
@@ -242,6 +250,26 @@ export default function TokenPage() {
       setBusyAccount(null)
     }
   }
+
+  const accountPageCount = Math.max(
+    Math.ceil(accounts.length / ACCOUNTS_PAGE_SIZE),
+    1,
+  )
+  const currentAccountPage = Math.min(Math.max(accountPage, 1), accountPageCount)
+  const accountStartOffset = (currentAccountPage - 1) * ACCOUNTS_PAGE_SIZE
+  const paginatedAccounts = accounts.slice(
+    accountStartOffset,
+    accountStartOffset + ACCOUNTS_PAGE_SIZE,
+  )
+  const accountStartIndex = accounts.length === 0 ? 0 : accountStartOffset + 1
+  const accountEndIndex = Math.min(
+    accountStartOffset + ACCOUNTS_PAGE_SIZE,
+    accounts.length,
+  )
+
+  useEffect(() => {
+    setAccountPage((page) => Math.min(Math.max(page, 1), accountPageCount))
+  }, [accountPageCount])
 
   return (
     <div className="mx-auto w-full max-w-[1320px] space-y-5">
@@ -407,7 +435,7 @@ export default function TokenPage() {
                     暂无 Kimi 账号
                   </div>
                 ) : (
-                  accounts.map((account) => (
+                  paginatedAccounts.map((account) => (
                     <div
                       key={account.id}
                       className="rounded-lg border border-border/60 bg-card p-4 shadow-sm"
@@ -512,6 +540,17 @@ export default function TokenPage() {
                   ))
                 )}
               </div>
+
+              {accounts.length > 0 && (
+                <PaginationControls
+                  page={currentAccountPage}
+                  pageCount={accountPageCount}
+                  total={accounts.length}
+                  startIndex={accountStartIndex}
+                  endIndex={accountEndIndex}
+                  onPageChange={setAccountPage}
+                />
+              )}
             </>
           )}
         </CardContent>

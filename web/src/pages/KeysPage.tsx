@@ -19,11 +19,14 @@ import {
   TableCell,
 } from "@/components/ui/table"
 import { CopyButton } from "@/components/shared/CopyButton"
+import { PaginationControls } from "@/components/shared/PaginationControls"
 import {
   MobileListSkeleton,
   TableSkeleton,
 } from "@/components/shared/PageSkeletons"
 import { PlusIcon } from "lucide-react"
+
+const KEYS_PAGE_SIZE = 10
 
 function KeyMobileCard({
   item,
@@ -83,6 +86,7 @@ export default function KeysPage() {
   const [creating, setCreating] = useState(false)
   const [newKey, setNewKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [keyPage, setKeyPage] = useState(1)
 
   const fetchKeys = useCallback(async () => {
     try {
@@ -106,6 +110,7 @@ export default function KeysPage() {
       setError(null)
       const data = await api.createKey(keyName.trim() || undefined)
       setKeys(data.keys)
+      setKeyPage(Math.max(Math.ceil(data.keys.length / KEYS_PAGE_SIZE), 1))
       if (data.new_key) {
         setNewKey(data.new_key)
       }
@@ -136,6 +141,17 @@ export default function KeysPage() {
       }
     }
   }
+
+  const keyPageCount = Math.max(Math.ceil(keys.length / KEYS_PAGE_SIZE), 1)
+  const currentKeyPage = Math.min(Math.max(keyPage, 1), keyPageCount)
+  const keyStartOffset = (currentKeyPage - 1) * KEYS_PAGE_SIZE
+  const paginatedKeys = keys.slice(keyStartOffset, keyStartOffset + KEYS_PAGE_SIZE)
+  const keyStartIndex = keys.length === 0 ? 0 : keyStartOffset + 1
+  const keyEndIndex = Math.min(keyStartOffset + KEYS_PAGE_SIZE, keys.length)
+
+  useEffect(() => {
+    setKeyPage((page) => Math.min(Math.max(page, 1), keyPageCount))
+  }, [keyPageCount])
 
   return (
     <div className="mx-auto w-full max-w-[1320px] space-y-5">
@@ -222,7 +238,7 @@ export default function KeysPage() {
       ) : (
         <>
           <div className="space-y-3 md:hidden">
-            {keys.map((item) => (
+            {paginatedKeys.map((item) => (
               <KeyMobileCard
                 key={item.key}
                 item={item}
@@ -231,64 +247,76 @@ export default function KeysPage() {
             ))}
           </div>
 
-          <div className="hidden md:block rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden">
-            <Table className="min-w-[860px] table-fixed">
-              <colgroup>
-                <col className="w-[18%]" />
-                <col className="w-[30%]" />
-                <col className="w-[18%]" />
-                <col className="w-[18%]" />
-                <col className="w-[8%]" />
-                <col className="w-24" />
-              </colgroup>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs">名称</TableHead>
-                  <TableHead className="text-xs">Key</TableHead>
-                  <TableHead className="text-xs">创建时间</TableHead>
-                  <TableHead className="text-xs">上次使用</TableHead>
-                  <TableHead className="text-center text-xs">请求数</TableHead>
-                  <TableHead className="text-left text-xs">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {keys.map((item) => (
-                  <TableRow key={item.key}>
-                    <TableCell className="truncate text-sm font-medium">
-                      {item.name || "-"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <code className="truncate text-xs text-muted-foreground">
-                          {item.key_preview}
-                        </code>
-                        <CopyButton text={item.key} />
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {item.created_at_str}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {item.last_used_str}
-                    </TableCell>
-                    <TableCell className="text-center text-xs">
+          <Table
+            containerClassName="hidden md:block max-h-[560px]"
+            className="min-w-[860px] table-fixed"
+          >
+            <colgroup>
+              <col className="w-[18%]" />
+              <col className="w-[30%]" />
+              <col className="w-[18%]" />
+              <col className="w-[18%]" />
+              <col className="w-[8%]" />
+              <col className="w-24" />
+            </colgroup>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="text-xs">名称</TableHead>
+                <TableHead className="text-xs">Key</TableHead>
+                <TableHead className="text-xs">创建时间</TableHead>
+                <TableHead className="text-xs">上次使用</TableHead>
+                <TableHead className="text-center text-xs">请求数</TableHead>
+                <TableHead className="text-left text-xs">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedKeys.map((item) => (
+                <TableRow key={item.key}>
+                  <TableCell className="truncate text-sm font-medium text-foreground">
+                    {item.name || "-"}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <code className="inline-flex min-w-0 max-w-full items-center rounded-md border border-border/60 bg-muted/25 px-2.5 py-1 font-mono text-[11px] text-muted-foreground shadow-inner shadow-background/30">
+                        <span className="truncate">{item.key_preview}</span>
+                      </code>
+                      <CopyButton text={item.key} />
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {item.created_at_str}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {item.last_used_str}
+                  </TableCell>
+                  <TableCell className="text-center text-xs">
+                    <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-border/55 bg-muted/30 px-2 py-0.5 font-medium tabular-nums text-foreground">
                       {item.request_count}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="destructive"
-                        size="xs"
-                        onClick={() => handleDelete(item.key)}
-                        className="h-7 px-2.5 text-[11px]"
-                      >
-                        删除
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="destructive"
+                      size="xs"
+                      onClick={() => handleDelete(item.key)}
+                      className="h-7 px-2.5 text-[11px]"
+                    >
+                      删除
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          <PaginationControls
+            page={currentKeyPage}
+            pageCount={keyPageCount}
+            total={keys.length}
+            startIndex={keyStartIndex}
+            endIndex={keyEndIndex}
+            onPageChange={setKeyPage}
+          />
         </>
       )}
     </div>
