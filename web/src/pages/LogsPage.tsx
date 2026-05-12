@@ -5,7 +5,10 @@ import type { LogEntry, LogsPage } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import {
+  MobileListSkeleton,
+  TableSkeleton,
+} from "@/components/shared/PageSkeletons"
 import {
   Select,
   SelectContent,
@@ -316,11 +319,10 @@ export default function LogsPage() {
       )}
 
       {loading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-full" />
-          ))}
-        </div>
+        <>
+          <MobileListSkeleton items={4} className="md:hidden" />
+          <TableSkeleton rows={5} columns={8} className="hidden md:block" />
+        </>
       ) : logs.length === 0 ? (
         <div className="rounded-lg border border-border/60 bg-card py-16 text-center shadow-sm">
           <FileTextIcon className="mx-auto size-8 text-muted-foreground/30" />

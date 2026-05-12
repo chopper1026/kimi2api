@@ -5,7 +5,7 @@ import type { LogDetailData } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailSkeleton } from "@/components/shared/PageSkeletons"
 import { JsonTreeView } from "@/components/logs/JsonTreeView"
 import { ArrowLeftIcon } from "lucide-react"
 
@@ -44,17 +44,7 @@ export default function LogDetailPage() {
   }, [requestId])
 
   if (loading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-64" />
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24" />
-          ))}
-        </div>
-        <Skeleton className="h-48" />
-      </div>
-    )
+    return <DetailSkeleton />
   }
 
   if (notFound || !data) {

@@ -17,6 +17,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog"
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner"
+import { TokenStatusSkeleton } from "@/components/shared/PageSkeletons"
 
 export default function TokenPage() {
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null)
@@ -123,10 +124,7 @@ export default function TokenPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           {loadingToken ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <LoadingSpinner size={16} />
-              <span className="text-sm">加载中...</span>
-            </div>
+            <TokenStatusSkeleton />
           ) : tokenInfo ? (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>

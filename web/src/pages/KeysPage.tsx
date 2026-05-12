@@ -18,8 +18,11 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table"
-import { Skeleton } from "@/components/ui/skeleton"
 import { CopyButton } from "@/components/shared/CopyButton"
+import {
+  MobileListSkeleton,
+  TableSkeleton,
+} from "@/components/shared/PageSkeletons"
 import { PlusIcon } from "lucide-react"
 
 function KeyMobileCard({
@@ -202,11 +205,10 @@ export default function KeysPage() {
       </Dialog>
 
       {loading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
+        <>
+          <MobileListSkeleton items={3} className="md:hidden" />
+          <TableSkeleton rows={3} columns={6} className="hidden md:block" />
+        </>
       ) : keys.length === 0 ? (
         <div className="rounded-lg border border-border/60 bg-card py-16 text-center shadow-sm">
           <Key className="mx-auto size-8 text-muted-foreground/30" />
