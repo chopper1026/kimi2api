@@ -175,6 +175,12 @@ http://127.0.0.1:8000/admin
 ### 3. Docker Compose 部署
 
 ```bash
+# 拉取代码
+git pull https://github.com/chopper1026/kimi2api.git
+cd kimi2api/
+# 创建data/
+mkdir data
+# 复制一份env配置，最简化配置只需要把ADMIN_PASSWORD配置好就可以直接启动了
 cp .env.example .env
 # 编辑 .env 后启动
 docker compose up -d
