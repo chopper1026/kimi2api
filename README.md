@@ -186,6 +186,14 @@ cp .env.example .env
 docker compose up -d
 ```
 
+## 获取kimi token
+
+登录kimi官网，打开开发者工具
+
+<picture>
+  <img src="docs/images/get_kimi_token.png" alt="获取token" width="960">
+</picture>
+
 ## 配置项
 
 | 变量 | 必填 | 默认值 | 说明 |
