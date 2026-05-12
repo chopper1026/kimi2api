@@ -201,7 +201,13 @@ export default function AppLayout() {
 
         {/* Content */}
         <main className="flex-1 overflow-auto p-4 pb-24 md:p-6">
-          <Outlet />
+          <div
+            key={location.pathname}
+            data-route-content
+            className="admin-route-content min-h-full"
+          >
+            <Outlet />
+          </div>
         </main>
       </div>
 

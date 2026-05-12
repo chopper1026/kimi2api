@@ -21,6 +21,18 @@ def test_admin_layout_adds_mobile_navigation_without_removing_desktop_sidebar():
     assert "md:flex" in source
 
 
+def test_admin_content_uses_route_transition_animation():
+    layout_source = Path("web/src/components/layout/AppLayout.tsx").read_text()
+    css_source = Path("web/src/index.css").read_text()
+
+    assert 'key={location.pathname}' in layout_source
+    assert 'data-route-content' in layout_source
+    assert 'className="admin-route-content min-h-full"' in layout_source
+    assert "@keyframes admin-route-enter" in css_source
+    assert ".admin-route-content" in css_source
+    assert "prefers-reduced-motion: reduce" in css_source
+
+
 def test_data_pages_keep_desktop_tables_and_add_mobile_cards():
     keys_source = Path("web/src/pages/KeysPage.tsx").read_text()
     logs_source = Path("web/src/pages/LogsPage.tsx").read_text()
@@ -38,3 +50,13 @@ def test_token_page_has_mobile_first_actions():
 
     assert "grid grid-cols-1 gap-2 md:flex" in source
     assert "w-full md:w-auto" in source
+
+
+def test_token_page_places_status_actions_at_card_bottom():
+    source = Path("web/src/pages/TokenPage.tsx").read_text()
+
+    assert '<CardHeader className="pb-3">' in source
+    assert 'data-token-actions' in source
+    assert 'className="grid grid-cols-1 gap-2 md:flex md:flex-wrap"' in source
+    assert "border-t border-border/60" not in source
+    assert "md:justify-end" not in source
