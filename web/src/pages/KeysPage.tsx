@@ -85,7 +85,7 @@ export default function KeysPage() {
   }
 
   return (
-    <div className="max-w-[1320px] space-y-5">
+    <div className="mx-auto w-full max-w-[1320px] space-y-5">
       <div className="flex items-center justify-between">
         <div />
         <Button size="sm" onClick={() => setDialogOpen(true)}>

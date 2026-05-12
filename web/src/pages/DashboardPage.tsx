@@ -399,7 +399,7 @@ export default function DashboardPage() {
   )
 
   return (
-    <div className="max-w-[1320px] space-y-5">
+    <div className="mx-auto w-full max-w-[1320px] space-y-5">
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           加载失败：{error}

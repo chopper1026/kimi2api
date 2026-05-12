@@ -148,7 +148,7 @@ export default function LogsPage() {
   }
 
   return (
-    <div className="max-w-[1320px] space-y-4">
+    <div className="mx-auto w-full max-w-[1320px] space-y-4">
       {/* Filters */}
       <div className="rounded-lg border border-border/60 bg-card p-4 shadow-sm">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(220px,1.4fr)_minmax(132px,0.8fr)_minmax(132px,0.8fr)_minmax(150px,1fr)_minmax(150px,1fr)_minmax(150px,1fr)]">
