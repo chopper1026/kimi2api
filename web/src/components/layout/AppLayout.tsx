@@ -13,8 +13,11 @@ import {
 import { useAuth } from "@/hooks/use-auth"
 import { useDashboardTheme } from "@/components/theme/theme-context"
 import { LogoMark } from "@/components/shared/LogoMark"
+import { buttonVariants } from "@/components/ui/button-variants"
 import { cn } from "@/lib/utils"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, type SVGProps } from "react"
+
+const GITHUB_REPO_URL = "https://github.com/chopper1026/kimi2api"
 
 const navItems = [
   { to: "/admin/dashboard", label: "概览", icon: LayoutDashboard },
@@ -28,6 +31,19 @@ const pageTitles: Record<string, string> = {
   "/admin/token": "账号管理",
   "/admin/keys": "API Keys",
   "/admin/logs": "请求日志",
+}
+
+function GitHubMark(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M12 2C6.48 2 2 6.59 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.09.68-.22.68-.49 0-.24-.01-1.04-.01-1.89-2.51.47-3.16-.63-3.36-1.2-.11-.29-.6-1.2-1.03-1.45-.35-.2-.85-.69-.01-.7.79-.01 1.35.74 1.54 1.05.9 1.55 2.34 1.11 2.91.85.09-.67.35-1.11.64-1.37-2.22-.26-4.55-1.14-4.55-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.28 9.28 0 0 1 12 7.01c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.8-4.57 5.06.36.32.68.93.68 1.89 0 1.37-.01 2.47-.01 2.81 0 .27.18.59.69.49A10.17 10.17 0 0 0 22 12.25C22 6.59 17.52 2 12 2Z" />
+    </svg>
+  )
 }
 
 function UserMenu({ onLogout }: { onLogout: () => void }) {
@@ -198,8 +214,25 @@ export default function AppLayout() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Top bar */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/80 px-4 md:px-6">
-          <h2 className="text-sm font-medium text-foreground">{title}</h2>
-          <UserMenu onLogout={handleLogout} />
+          <h2 className="min-w-0 truncate text-sm font-medium text-foreground">
+            {title}
+          </h2>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <a
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="打开 GitHub 项目"
+              title="GitHub 项目"
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "icon" }),
+                "size-10 text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <GitHubMark className="size-6" />
+            </a>
+            <UserMenu onLogout={handleLogout} />
+          </div>
         </header>
 
         {/* Content */}
