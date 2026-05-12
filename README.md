@@ -9,65 +9,86 @@ Kimi2API 是一个基于 Kimi Web 协议封装的 OpenAI 兼容 API 服务。它
 
 ## 界面预览
 
-以下截图使用脱敏演示数据，仅用于展示管理面板布局。
+以下截图使用脱敏演示数据，仅用于展示管理面板布局。点击下方宫格可在当前 README 中展开大图，再次点击可收起。
 
-<table>
-  <tr>
-    <td align="center" width="33%">
-      <details>
-        <summary>
-          <strong>登录页</strong><br>
-          <img src="docs/images/admin-login.png" alt="登录页" width="260">
-        </summary>
-        <br>
-        <img src="docs/images/admin-login.png" alt="登录页大图" width="960">
-      </details>
-    </td>
-    <td align="center" width="33%">
-      <details>
-        <summary>
-          <strong>概览</strong><br>
-          <img src="docs/images/admin-dashboard.png" alt="概览" width="260">
-        </summary>
-        <br>
-        <img src="docs/images/admin-dashboard.png" alt="概览大图" width="960">
-      </details>
-    </td>
-    <td align="center" width="33%">
-      <details>
-        <summary>
-          <strong>账号管理</strong><br>
-          <img src="docs/images/admin-accounts.png" alt="账号管理" width="260">
-        </summary>
-        <br>
-        <img src="docs/images/admin-accounts.png" alt="账号管理大图" width="960">
-      </details>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="33%">
-      <details>
-        <summary>
-          <strong>API Keys</strong><br>
-          <img src="docs/images/admin-api-keys.png" alt="API Keys" width="260">
-        </summary>
-        <br>
-        <img src="docs/images/admin-api-keys.png" alt="API Keys 大图" width="960">
-      </details>
-    </td>
-    <td align="center" width="33%">
-      <details>
-        <summary>
-          <strong>请求日志</strong><br>
-          <img src="docs/images/admin-request-logs.png" alt="请求日志" width="260">
-        </summary>
-        <br>
-        <img src="docs/images/admin-request-logs.png" alt="请求日志大图" width="960">
-      </details>
-    </td>
-    <td width="33%"></td>
-  </tr>
-</table>
+<details>
+  <summary>
+    <strong>点击展开 / 收起界面大图</strong>
+    <br><br>
+    <table>
+      <tr>
+        <td align="center" width="33%">
+          <picture>
+            <img src="docs/images/admin-login.png" alt="登录页" width="260">
+          </picture>
+          <br>
+          <sub>登录页</sub>
+        </td>
+        <td align="center" width="33%">
+          <picture>
+            <img src="docs/images/admin-dashboard.png" alt="概览" width="260">
+          </picture>
+          <br>
+          <sub>概览</sub>
+        </td>
+        <td align="center" width="33%">
+          <picture>
+            <img src="docs/images/admin-accounts.png" alt="账号管理" width="260">
+          </picture>
+          <br>
+          <sub>账号管理</sub>
+        </td>
+      </tr>
+      <tr>
+        <td align="center" width="33%">
+          <picture>
+            <img src="docs/images/admin-api-keys.png" alt="API Keys" width="260">
+          </picture>
+          <br>
+          <sub>API Keys</sub>
+        </td>
+        <td align="center" width="33%">
+          <picture>
+            <img src="docs/images/admin-request-logs.png" alt="请求日志" width="260">
+          </picture>
+          <br>
+          <sub>请求日志</sub>
+        </td>
+        <td width="33%"></td>
+      </tr>
+    </table>
+  </summary>
+
+### 登录页
+
+<picture>
+  <img src="docs/images/admin-login.png" alt="登录页大图" width="960">
+</picture>
+
+### 概览
+
+<picture>
+  <img src="docs/images/admin-dashboard.png" alt="概览大图" width="960">
+</picture>
+
+### 账号管理
+
+<picture>
+  <img src="docs/images/admin-accounts.png" alt="账号管理大图" width="960">
+</picture>
+
+### API Keys
+
+<picture>
+  <img src="docs/images/admin-api-keys.png" alt="API Keys 大图" width="960">
+</picture>
+
+### 请求日志
+
+<picture>
+  <img src="docs/images/admin-request-logs.png" alt="请求日志大图" width="960">
+</picture>
+</details>
 
 ## 功能概览
 
