@@ -11,7 +11,14 @@ except ImportError:  # pragma: no cover - Python 3.8 compatibility
 
 from ..config import Config
 from ..core.keys import list_keys, total_request_count
-from ..core.logs import RequestLog, count_logs, get_log, get_recent_logs, search_logs
+from ..core.logs import (
+    RequestLog,
+    count_logs,
+    get_log,
+    get_recent_logs,
+    search_logs,
+    total_log_count,
+)
 from ..core.token_manager import get_token_manager
 
 _START_TIME: float = 0.0
@@ -61,6 +68,17 @@ def fmt_request_duration(duration_ms: float) -> str:
     minutes = int(seconds // 60)
     remaining_seconds = seconds % 60
     return f"{minutes}m {remaining_seconds:.1f}s"
+
+
+def fmt_size_bytes(size: int) -> str:
+    units = (("GB", 1024**3), ("MB", 1024**2), ("KB", 1024))
+    for suffix, unit_size in units:
+        if size >= unit_size:
+            value = size / unit_size
+            if value.is_integer():
+                return f"{int(value)}{suffix}"
+            return f"{value:.1f}{suffix}"
+    return f"{max(int(size), 0)}B"
 
 
 def _fmt_retry_after(seconds: float) -> str:
@@ -207,6 +225,62 @@ def _serialize_logs(entries: List[RequestLog]) -> List[Dict[str, Any]]:
     return result
 
 
+def _is_recent_error(log: RequestLog) -> bool:
+    return (
+        log.status_code >= 400
+        or bool(log.error_message)
+        or log.upstream_status_code > 0
+    )
+
+
+def _dashboard_scan_limit() -> int:
+    return max(int(getattr(Config, "REQUEST_LOG_RETENTION", 1000)), 1)
+
+
+def _recent_24h_logs(now: float) -> List[RequestLog]:
+    cutoff = now - 86400
+    return [
+        log
+        for log in get_recent_logs(_dashboard_scan_limit())
+        if log.timestamp >= cutoff
+    ]
+
+
+def _serialize_recent_error(log: RequestLog) -> Dict[str, Any]:
+    return {
+        "request_id": log.request_id,
+        "time_str": _local_datetime(log.timestamp).strftime("%m-%d %H:%M:%S"),
+        "method": log.method,
+        "path": log.path,
+        "status_code": log.status_code,
+        "api_key_name": log.api_key_name,
+        "error_message": log.error_message,
+        "upstream_summary": _upstream_summary(log),
+        "duration_display": fmt_request_duration(log.duration_ms),
+    }
+
+
+def _recent_activity(now: float) -> Dict[str, Any]:
+    recent_logs = _recent_24h_logs(now)
+    errors = [log for log in recent_logs if _is_recent_error(log)]
+    total = len(recent_logs)
+    total_duration = sum(log.duration_ms for log in recent_logs)
+
+    return {
+        "recent_24h_total": total,
+        "recent_24h_success": max(total - len(errors), 0),
+        "recent_24h_error": len(errors),
+        "recent_24h_stream": sum(1 for log in recent_logs if log.is_stream),
+        "recent_24h_avg_duration": (
+            fmt_request_duration(total_duration / total) if total else "-"
+        ),
+        "recent_errors": [
+            _serialize_recent_error(log)
+            for log in errors[:5]
+        ],
+    }
+
+
 def log_page(filters: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     query = _log_filters(filters)
     requested_page = _positive_int(query["page"])
@@ -328,13 +402,20 @@ def log_detail(request_id: str, base_url: str) -> Optional[Dict[str, Any]]:
 def dashboard_stats() -> Dict[str, Any]:
     ti = token_info()
     keys = list_keys()
+    now = time.time()
     return {
-        "uptime": fmt_duration(time.time() - _START_TIME),
+        "uptime": fmt_duration(now - _START_TIME),
         "token_healthy": ti["token_healthy"],
         "token_status": ti["token_status"],
         "token_type": ti["token_type"],
         "token_expires": ti["token_expires"],
         "key_count": len(keys),
         "total_requests": total_request_count(),
-        "log_count": len(get_recent_logs(200)),
+        "log_count": total_log_count(),
+        "request_log_retention": _dashboard_scan_limit(),
+        "request_log_body_limit": fmt_size_bytes(
+            int(getattr(Config, "REQUEST_LOG_BODY_LIMIT", 1048576))
+        ),
+        "timezone": _display_timezone()[1],
+        **_recent_activity(now),
     }

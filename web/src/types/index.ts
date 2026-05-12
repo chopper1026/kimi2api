@@ -13,6 +13,27 @@ export interface DashboardStats {
   key_count: number
   total_requests: number
   log_count: number
+  recent_24h_total: number
+  recent_24h_success: number
+  recent_24h_error: number
+  recent_24h_stream: number
+  recent_24h_avg_duration: string
+  recent_errors: RecentError[]
+  request_log_retention: number
+  request_log_body_limit: string
+  timezone: string
+}
+
+export interface RecentError {
+  request_id: string
+  time_str: string
+  method: string
+  path: string
+  status_code: number
+  api_key_name: string
+  error_message: string
+  upstream_summary: string
+  duration_display: string
 }
 
 export interface TokenInfo {

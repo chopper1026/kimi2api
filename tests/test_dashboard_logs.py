@@ -1,4 +1,5 @@
 import json
+import time
 
 from app.core import logs
 
@@ -145,3 +146,74 @@ def test_admin_logs_are_paginated_twenty_per_page(authenticated_admin_client, tm
     second_data = second_page.json()
     assert second_data["pagination"]["page"] == 2
     assert len(second_data["logs"]) == 5
+
+
+def test_admin_stats_include_recent_activity_errors_and_log_policy(
+    authenticated_admin_client,
+    tmp_data_dir,
+    config_override,
+):
+    now = time.time()
+    config_override(
+        REQUEST_LOG_RETENTION=30,
+        REQUEST_LOG_BODY_LIMIT=1048576,
+        TIMEZONE="Asia/Shanghai",
+    )
+
+    _log(
+        "req-success-recent",
+        timestamp=now - 60,
+        status="success",
+        status_code=200,
+        duration_ms=10.0,
+        is_stream=False,
+        error_message="",
+    )
+    _log(
+        "req-error-recent",
+        timestamp=now - 120,
+        status="error",
+        status_code=502,
+        duration_ms=30.0,
+        is_stream=True,
+        error_message="upstream timeout",
+    )
+    _log(
+        "req-upstream-recent",
+        timestamp=now - 180,
+        status="success",
+        status_code=200,
+        duration_ms=50.0,
+        is_stream=False,
+        error_message="",
+        upstream_status_code=429,
+        upstream_error_type="rate_limited",
+    )
+    _log(
+        "req-old",
+        timestamp=now - 90000,
+        status="error",
+        status_code=500,
+        duration_ms=100.0,
+        is_stream=False,
+        error_message="old error",
+    )
+
+    response = authenticated_admin_client.get("/admin/api/stats")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["recent_24h_total"] == 3
+    assert data["recent_24h_success"] == 1
+    assert data["recent_24h_error"] == 2
+    assert data["recent_24h_stream"] == 1
+    assert data["recent_24h_avg_duration"] == "30.0ms"
+    assert data["request_log_retention"] == 30
+    assert data["request_log_body_limit"] == "1MB"
+    assert data["timezone"] == "Asia/Shanghai"
+    assert data["log_count"] == 4
+    assert [item["request_id"] for item in data["recent_errors"]] == [
+        "req-error-recent",
+        "req-upstream-recent",
+    ]
+    assert data["recent_errors"][0]["duration_display"] == "30.0ms"
