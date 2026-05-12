@@ -143,9 +143,9 @@ export default function AppLayout() {
     (location.pathname.startsWith("/admin/logs/") ? "日志详情" : "Kimi2API")
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex min-h-dvh flex-col bg-background md:h-screen md:flex-row">
       {/* Sidebar */}
-      <aside className="flex w-60 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <aside className="hidden w-60 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
         {/* Brand */}
         <div className="flex items-center gap-3 px-5 py-5">
           <LogoMark className="size-8" />
@@ -192,18 +192,42 @@ export default function AppLayout() {
       </aside>
 
       {/* Main area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/80 px-6">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/80 px-4 md:px-6">
           <h2 className="text-sm font-medium text-foreground">{title}</h2>
           <UserMenu onLogout={handleLogout} />
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-4 pb-24 md:p-6">
           <Outlet />
         </main>
       </div>
+
+      <nav
+        aria-label="移动端导航"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] backdrop-blur md:hidden"
+      >
+        <div className="grid grid-cols-4 gap-1">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`
+              }
+            >
+              <item.icon className="size-4" />
+              <span className="truncate">{item.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      </nav>
     </div>
   )
 }

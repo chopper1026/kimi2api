@@ -110,7 +110,7 @@ export default function TokenPage() {
   }
 
   return (
-    <div className="max-w-[592px] space-y-5">
+    <div className="w-full max-w-[592px] space-y-5">
       {tokenError && (
         <Alert variant="destructive">
           <AlertDescription>{tokenError}</AlertDescription>
@@ -118,11 +118,19 @@ export default function TokenPage() {
       )}
 
       <Card className="border-border/60 shadow-sm">
-        <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <CardHeader className="flex flex-col gap-3 pb-3 md:flex-row md:items-center md:justify-between">
           <CardTitle className="text-sm font-medium">Token 状态</CardTitle>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 gap-2 md:flex md:flex-wrap">
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
-              <DialogTrigger render={<Button variant="outline" size="sm" />}>
+              <DialogTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full md:w-auto h-10 md:h-7"
+                  />
+                }
+              >
                 <Pencil className="mr-1.5 h-3.5 w-3.5" />
                 编辑 Token
               </DialogTrigger>
@@ -160,7 +168,13 @@ export default function TokenPage() {
               </DialogContent>
             </Dialog>
 
-            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="w-full md:w-auto h-10 md:h-7"
+            >
               {refreshing ? (
                 <LoadingSpinner size={14} className="mr-1.5" />
               ) : (
@@ -169,7 +183,13 @@ export default function TokenPage() {
               刷新 Token
             </Button>
 
-            <Button variant="outline" size="sm" onClick={handleValidate} disabled={validating}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleValidate}
+              disabled={validating}
+              className="w-full md:w-auto h-10 md:h-7"
+            >
               {validating ? (
                 <LoadingSpinner size={14} className="mr-1.5" />
               ) : (
@@ -186,7 +206,7 @@ export default function TokenPage() {
               <span className="text-sm">加载中...</span>
             </div>
           ) : tokenInfo ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <p className="text-xs text-muted-foreground">Token 类型</p>
                 <p className="mt-0.5 text-sm font-medium">{tokenInfo.token_type}</p>

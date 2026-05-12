@@ -68,6 +68,92 @@ function formatStreamFilter(value: unknown) {
   return streamFilterLabels[value] ?? value
 }
 
+function LogMobileCard({
+  log,
+  onOpen,
+}: {
+  log: LogEntry
+  onOpen: () => void
+}) {
+  const modelLabel = logModelLabel(log)
+
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono text-[11px] text-muted-foreground">
+            {log.time_str}
+          </p>
+          <p className="mt-1 truncate text-sm font-medium">
+            <span className="text-muted-foreground">{log.method}</span>{" "}
+            {log.path}
+          </p>
+          <code
+            className="mt-1 block truncate text-[11px] text-muted-foreground"
+            title={log.request_id}
+          >
+            {requestIdPreview(log)}
+          </code>
+        </div>
+        <div className="shrink-0 text-right">
+          <p
+            className={`text-sm font-semibold ${
+              log.status_code >= 400 ? "text-destructive" : "text-success"
+            }`}
+          >
+            {log.status_code}
+          </p>
+          {log.is_stream && (
+            <Badge variant="secondary" className="mt-1 text-[10px]">
+              流式
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {(log.error_message || log.upstream_summary) && (
+        <div
+          className={`mt-3 rounded-lg px-3 py-2 text-[11px] ${
+            log.error_message
+              ? "bg-destructive/10 text-destructive"
+              : "bg-warning-muted/35 text-warning"
+          }`}
+        >
+          {log.error_message || log.upstream_summary}
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded-lg bg-muted/35 px-3 py-2">
+          <p className="text-muted-foreground">Key</p>
+          <p className="mt-1 truncate font-medium">{log.api_key_name || "-"}</p>
+        </div>
+        <div className="rounded-lg bg-muted/35 px-3 py-2">
+          <p className="text-muted-foreground">模型</p>
+          <p className="mt-1 truncate font-medium">{modelLabel || "-"}</p>
+        </div>
+        <div className="rounded-lg bg-muted/35 px-3 py-2">
+          <p className="text-muted-foreground">耗时</p>
+          <p className="mt-1 font-medium">{log.duration_display}</p>
+        </div>
+        <div className="rounded-lg bg-muted/35 px-3 py-2">
+          <p className="text-muted-foreground">类型</p>
+          <p className="mt-1 font-medium">{log.is_stream ? "流式" : "普通"}</p>
+        </div>
+      </div>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onOpen}
+        className="mt-4 h-9 w-full text-xs"
+      >
+        查看详情
+      </Button>
+    </div>
+  )
+}
+
 export default function LogsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -151,19 +237,19 @@ export default function LogsPage() {
     <div className="mx-auto w-full max-w-[1320px] space-y-4">
       {/* Filters */}
       <div className="rounded-lg border border-border/60 bg-card p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(220px,1.4fr)_minmax(132px,0.8fr)_minmax(132px,0.8fr)_minmax(150px,1fr)_minmax(150px,1fr)_minmax(150px,1fr)]">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(220px,1.4fr)_minmax(132px,0.8fr)_minmax(132px,0.8fr)_minmax(150px,1fr)_minmax(150px,1fr)_minmax(150px,1fr)]">
           <Input
             name="q"
             placeholder="关键词搜索"
             value={q}
             onChange={(e) => updateFilter("q", e.target.value)}
-            className="h-8 min-w-0 text-xs"
+            className="h-10 min-w-0 text-xs md:h-8"
           />
           <Select
             value={status || ""}
             onValueChange={(v) => updateFilter("status", v === "__all__" ? "" : (v ?? ""))}
           >
-            <SelectTrigger className="h-8 w-full min-w-0 text-xs">
+            <SelectTrigger className="h-10 w-full min-w-0 text-xs md:h-8">
               <SelectValue placeholder="状态：全部">
                 {formatStatusFilter}
               </SelectValue>
@@ -178,7 +264,7 @@ export default function LogsPage() {
             value={stream || ""}
             onValueChange={(v) => updateFilter("stream", v === "__all__" ? "" : (v ?? ""))}
           >
-            <SelectTrigger className="h-8 w-full min-w-0 text-xs">
+            <SelectTrigger className="h-10 w-full min-w-0 text-xs md:h-8">
               <SelectValue placeholder="类型：全部">
                 {formatStreamFilter}
               </SelectValue>
@@ -194,29 +280,29 @@ export default function LogsPage() {
             placeholder="模型"
             value={model}
             onChange={(e) => updateFilter("model", e.target.value)}
-            className="h-8 min-w-0 text-xs"
+            className="h-10 min-w-0 text-xs md:h-8"
           />
           <Input
             name="api_key_name"
             placeholder="Key 名称"
             value={api_key_name}
             onChange={(e) => updateFilter("api_key_name", e.target.value)}
-            className="h-8 min-w-0 text-xs"
+            className="h-10 min-w-0 text-xs md:h-8"
           />
           <Input
             name="path"
             placeholder="路径"
             value={path}
             onChange={(e) => updateFilter("path", e.target.value)}
-            className="h-8 min-w-0 text-xs"
+            className="h-10 min-w-0 text-xs md:h-8"
           />
         </div>
-        <div className="mt-2.5 flex gap-2">
-          <Button size="sm" className="h-7 text-xs" onClick={fetchLogs}>
+        <div className="mt-2.5 grid grid-cols-2 gap-2 md:flex">
+          <Button size="sm" className="h-10 text-xs md:h-7" onClick={fetchLogs}>
             <SearchIcon className="mr-1 size-3" />
             筛选
           </Button>
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleClear}>
+          <Button size="sm" variant="outline" className="h-10 text-xs md:h-7" onClick={handleClear}>
             <RotateCcwIcon className="mr-1 size-3" />
             清空
           </Button>
@@ -242,7 +328,17 @@ export default function LogsPage() {
         </div>
       ) : (
         <>
-          <div className="rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden">
+          <div className="space-y-3 md:hidden">
+            {logs.map((log) => (
+              <LogMobileCard
+                key={log.request_id}
+                log={log}
+                onOpen={() => navigate(`/admin/logs/${log.request_id}`)}
+              />
+            ))}
+          </div>
+
+          <div className="hidden md:block rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden">
             <Table className="min-w-[900px] table-fixed">
               <colgroup>
                 <col className="w-[8%]" />
@@ -343,12 +439,12 @@ export default function LogsPage() {
           </div>
 
           {pagination && (
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <p className="text-xs text-muted-foreground">
                 第 {pagination.start_index}-{pagination.end_index} 条，共{" "}
                 {pagination.total} 条
               </p>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center justify-between gap-1 md:justify-end">
                 <Button
                   variant="outline"
                   size="icon-xs"
