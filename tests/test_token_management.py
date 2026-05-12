@@ -1,8 +1,12 @@
+import base64
 import json
 import os
 import stat
+import time
 from unittest.mock import Mock
 
+import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Config
@@ -11,6 +15,23 @@ from app.core.token_manager import TokenManager
 from app.core.kimi_token_store import load_configured_kimi_token, save_kimi_token
 from app.kimi.protocol import KimiAPIError
 from app.main import create_app, main
+
+
+def _b64_json(payload: dict) -> str:
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _jwt_access_token() -> str:
+    return ".".join([
+        _b64_json({"alg": "none", "typ": "JWT"}),
+        _b64_json({
+            "app_id": "kimi",
+            "typ": "access",
+            "exp": int(time.time()) + 30 * 24 * 60 * 60,
+        }),
+        "signature",
+    ])
 
 
 def test_saved_token_takes_precedence_over_env_token(admin_config, config_override):
@@ -42,6 +63,56 @@ def test_token_manager_exposes_state_snapshot():
         import asyncio
 
         asyncio.run(manager.close())
+
+
+@pytest.mark.asyncio
+async def test_token_manager_uses_valid_cached_access_token_without_refresh():
+    class FailingTransport:
+        async def request(self, *_args, **_kwargs):
+            raise AssertionError("refresh endpoint should not be called")
+
+    cached_access = _jwt_access_token()
+    manager = TokenManager(
+        "refresh-token",
+        cached_access_token=cached_access,
+        cached_access_expires_at=time.time() + 3600,
+        transport=FailingTransport(),
+    )
+
+    try:
+        assert await manager.get_access_token() == cached_access
+        state = manager.get_state()
+        assert state.access_token == cached_access
+        assert state.refresh_token == "refresh-token"
+        assert state.token_type == "jwt"
+    finally:
+        await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_token_manager_persists_refreshed_access_token_via_callback():
+    refreshed_access = _jwt_access_token()
+    persisted = []
+
+    class RefreshTransport:
+        async def request(self, *_args, **_kwargs):
+            return httpx.Response(200, json={"access_token": refreshed_access})
+
+    def on_refreshed(state):
+        persisted.append((state.access_token, state.expires_at))
+
+    manager = TokenManager(
+        "refresh-token",
+        transport=RefreshTransport(),
+        on_token_refreshed=on_refreshed,
+    )
+
+    try:
+        assert await manager.get_access_token() == refreshed_access
+    finally:
+        await manager.close()
+
+    assert persisted == [(refreshed_access, manager.get_state().expires_at)]
 
 
 def test_main_starts_uvicorn_with_loaded_server_config(
@@ -136,7 +207,8 @@ def test_admin_can_save_token_and_replace_runtime_manager(
     assert response.status_code == 200
     body = response.json()
     assert body["success"] is True
-    assert "new-****" in body["token"]["token_preview"]
+    assert body["token"]["token_preview"] == "new****ken"
+    assert body["token"]["token_type"] == "refresh token"
     assert "new-refresh-token" not in body["token"]["token_preview"]
     assert token_manager_store.get() is not None
     assert token_manager_store.refresh_token() == "new-refresh-token"

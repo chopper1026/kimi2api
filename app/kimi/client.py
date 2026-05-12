@@ -1,11 +1,13 @@
 import asyncio
 import time
 import uuid
-from typing import Any, AsyncIterator, Dict, List, Optional, Union
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Set, Union
 
 import httpx
 
 from ..config import Config as _Config
+from ..core.kimi_account_pool import KimiAccountRuntime, get_account_pool
 from ..core.token_manager import get_token_manager
 from .chunks import (
     build_chat_completion,
@@ -41,6 +43,34 @@ from .transport import (
     process_session_id,
     retry_after_seconds,
 )
+
+
+AccountUsageCallback = Callable[[Dict[str, str]], None]
+
+
+class _LegacyRuntime:
+    def __init__(
+        self,
+        *,
+        token_manager: Any,
+        transport: Any,
+        device_id: str,
+        session_id: str,
+    ):
+        self.account_id = ""
+        self.account_name = ""
+        self.token_manager = token_manager
+        self.transport = transport
+        self.account = type(
+            "LegacyAccount",
+            (),
+            {
+                "id": "",
+                "name": "",
+                "device_id": device_id,
+            },
+        )()
+        self.session_id = session_id
 
 
 class _ChatNamespace:
@@ -120,17 +150,19 @@ class Kimi2API:
         timeout: Optional[float] = None,
         max_retries: int = 3,
         base_url: Optional[str] = None,
+        on_account_used: Optional[AccountUsageCallback] = None,
         **kwargs: Any,
     ):
         del kwargs
 
-        try:
-            self._token_manager = get_token_manager()
-        except RuntimeError as exc:
-            raise KimiAPIError("Kimi token is not configured") from exc
         self._base_url = (base_url or _Config.KIMI_API_BASE).rstrip("/")
         self._timeout = timeout or _Config.TIMEOUT
         self._max_retries = max_retries
+        self._on_account_used = on_account_used
+        self.last_account_id = ""
+        self.last_account_name = ""
+        self._account_pool = get_account_pool(required=False)
+        self._legacy_runtime: Optional[_LegacyRuntime] = None
         self._device_id = load_or_create_client_identity().device_id
         self._session_id = process_session_id()
         self._transport = get_shared_transport(
@@ -138,16 +170,40 @@ class Kimi2API:
             timeout=self._timeout,
             max_retries=self._max_retries,
         )
+        if self._account_pool is None or not self._account_pool.configured:
+            try:
+                token_manager = get_token_manager()
+            except RuntimeError as exc:
+                raise KimiAPIError("Kimi token is not configured") from exc
+            self._legacy_runtime = _LegacyRuntime(
+                token_manager=token_manager,
+                transport=self._transport,
+                device_id=self._device_id,
+                session_id=self._session_id,
+            )
         self._conversation_contexts: Dict[str, ConversationContext] = {}
         self.chat = _ChatNamespace(self)
 
-    async def _get_headers(self, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        token = await self._token_manager.get_access_token()
+    def _notify_account_used(self, runtime: Union[KimiAccountRuntime, _LegacyRuntime]) -> None:
+        self.last_account_id = runtime.account_id
+        self.last_account_name = runtime.account_name
+        if self._on_account_used is not None and runtime.account_id:
+            self._on_account_used({
+                "id": runtime.account_id,
+                "name": runtime.account_name,
+            })
+
+    async def _get_headers(
+        self,
+        runtime: Union[KimiAccountRuntime, _LegacyRuntime],
+        extra: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
+        token = await runtime.token_manager.get_access_token()
         return build_kimi_headers(
             base_url=self._base_url,
             token=token,
-            device_id=self._device_id,
-            session_id=self._session_id,
+            device_id=runtime.account.device_id,
+            session_id=runtime.session_id,
             extra={
                 "Connect-Protocol-Version": "1",
                 **(extra or {}),
@@ -169,6 +225,22 @@ class Kimi2API:
             **kwargs,
         )
 
+    @asynccontextmanager
+    async def _acquire_runtime(
+        self,
+        *,
+        exclude: Optional[Set[str]] = None,
+    ) -> AsyncIterator[Union[KimiAccountRuntime, _LegacyRuntime]]:
+        if self._account_pool is not None and self._account_pool.configured:
+            async with self._account_pool.acquire(exclude=exclude) as runtime:
+                self._notify_account_used(runtime)
+                yield runtime
+            return
+        if self._legacy_runtime is None:
+            raise KimiAPIError("Kimi token is not configured")
+        self._notify_account_used(self._legacy_runtime)
+        yield self._legacy_runtime
+
     async def validate_token(self) -> bool:
         try:
             data = await self.get_subscription()
@@ -178,14 +250,15 @@ class Kimi2API:
 
     async def get_subscription(self) -> Optional[Dict[str, Any]]:
         try:
-            headers = await self._get_headers()
-            response = await self._request_with_retries(
-                "POST",
-                f"{self._base_url}{KIMI_SUBSCRIPTION_PATH}",
-                json={},
-                headers=headers,
-                timeout=15.0,
-            )
+            async with self._acquire_runtime() as runtime:
+                headers = await self._get_headers(runtime)
+                response = await runtime.transport.request(
+                    "POST",
+                    KIMI_SUBSCRIPTION_PATH,
+                    json={},
+                    headers=headers,
+                    timeout=15.0,
+                )
             if response.status_code != 200:
                 return None
             return response.json()
@@ -194,13 +267,14 @@ class Kimi2API:
 
     async def get_research_usage(self) -> Optional[Dict[str, Any]]:
         try:
-            headers = await self._get_headers()
-            response = await self._request_with_retries(
-                "GET",
-                f"{self._base_url}{KIMI_RESEARCH_USAGE_PATH}",
-                headers=headers,
-                timeout=15.0,
-            )
+            async with self._acquire_runtime() as runtime:
+                headers = await self._get_headers(runtime)
+                response = await runtime.transport.request(
+                    "GET",
+                    KIMI_RESEARCH_USAGE_PATH,
+                    headers=headers,
+                    timeout=15.0,
+                )
             if response.status_code != 200:
                 return None
             return response.json()
@@ -300,15 +374,19 @@ class Kimi2API:
         async for event in iter_grpc_events(response, context):
             yield event
 
-    async def _iter_chat_events(
+    async def _iter_chat_events_for_runtime(
         self,
+        runtime: Union[KimiAccountRuntime, _LegacyRuntime],
         content: bytes,
         context: ConversationContext,
     ) -> AsyncIterator[Dict[str, Any]]:
-        headers = await self._get_headers({"Content-Type": "application/connect+json"})
-        async with self._transport.stream(
+        headers = await self._get_headers(
+            runtime,
+            {"Content-Type": "application/connect+json"},
+        )
+        async with runtime.transport.stream(
             "POST",
-            f"{self._base_url}{KIMI_CHAT_PATH}",
+            KIMI_CHAT_PATH,
             content=content,
             headers=headers,
             timeout=self._timeout,
@@ -319,11 +397,14 @@ class Kimi2API:
                     yield event
                 return
 
-        await self._token_manager.invalidate_and_retry()
-        headers = await self._get_headers({"Content-Type": "application/connect+json"})
-        async with self._transport.stream(
+        await runtime.token_manager.invalidate_and_retry()
+        headers = await self._get_headers(
+            runtime,
+            {"Content-Type": "application/connect+json"},
+        )
+        async with runtime.transport.stream(
             "POST",
-            f"{self._base_url}{KIMI_CHAT_PATH}",
+            KIMI_CHAT_PATH,
             content=content,
             headers=headers,
             timeout=self._timeout,
@@ -331,6 +412,49 @@ class Kimi2API:
             await self._raise_for_response(response)
             async for event in self._iter_grpc_events(response, context):
                 yield event
+
+    async def _iter_chat_events(
+        self,
+        content: bytes,
+        context: ConversationContext,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        async with self._acquire_runtime() as runtime:
+            async for event in self._iter_chat_events_for_runtime(runtime, content, context):
+                yield event
+
+    def _can_switch_account(self, exc: Exception) -> bool:
+        if not isinstance(exc, KimiAPIError):
+            return True
+        status_code = int(exc.upstream_status_code or 0)
+        return (
+            status_code in {401, 403, 429}
+            or 500 <= status_code <= 599
+            or exc.upstream_error_type
+            in {
+                "rate_limited",
+                "server_error",
+                "network_error",
+                "stream_interrupted",
+                "token_refresh_failed",
+                "unauthorized",
+                "forbidden",
+            }
+        )
+
+    def _record_runtime_failure(
+        self,
+        runtime: Union[KimiAccountRuntime, _LegacyRuntime],
+        exc: Exception,
+    ) -> None:
+        if self._account_pool is not None and isinstance(runtime, KimiAccountRuntime):
+            self._account_pool.record_failure(runtime, exc)
+
+    def _record_runtime_success(
+        self,
+        runtime: Union[KimiAccountRuntime, _LegacyRuntime],
+    ) -> None:
+        if self._account_pool is not None and isinstance(runtime, KimiAccountRuntime):
+            self._account_pool.record_success(runtime)
 
     async def _sync_chat(
         self,
@@ -345,42 +469,68 @@ class Kimi2API:
         current_phase: Optional[str] = None
 
         last_error: Optional[Exception] = None
-        for attempt in range(1, self._max_retries + 1):
+        attempted_accounts: Set[str] = set()
+        attempt_limit = (
+            max(self._max_retries, self._account_pool.account_count())
+            if self._account_pool is not None and self._account_pool.configured
+            else self._max_retries
+        )
+        for attempt in range(1, attempt_limit + 1):
             reasoning_parts.clear()
             content_parts.clear()
             current_phase = None
+            runtime: Optional[Union[KimiAccountRuntime, _LegacyRuntime]] = None
+            produced_output = False
             try:
-                async for event in self._iter_chat_events(content, context):
-                    delta = self._extract_delta(event, current_phase)
-                    current_phase = delta["phase"]
-                    if delta["reasoning_content"]:
-                        reasoning_parts.append(delta["reasoning_content"])
-                    if delta["content"]:
-                        content_parts.append(delta["content"])
-                    if "done" in event:
-                        break
+                async with self._acquire_runtime(exclude=attempted_accounts) as selected_runtime:
+                    runtime = selected_runtime
+                    if runtime.account_id:
+                        attempted_accounts.add(runtime.account_id)
+                    async for event in self._iter_chat_events_for_runtime(runtime, content, context):
+                        delta = self._extract_delta(event, current_phase)
+                        current_phase = delta["phase"]
+                        if delta["reasoning_content"]:
+                            produced_output = True
+                            reasoning_parts.append(delta["reasoning_content"])
+                        if delta["content"]:
+                            produced_output = True
+                            content_parts.append(delta["content"])
+                        if "done" in event:
+                            produced_output = True
+                            break
+                    self._record_runtime_success(runtime)
                 break
             except KimiAPIError as exc:
                 last_error = exc
-                if attempt == self._max_retries:
+                if runtime is not None:
+                    self._record_runtime_failure(runtime, exc)
+                if (
+                    produced_output
+                    or attempt == attempt_limit
+                    or not self._can_switch_account(exc)
+                ):
                     raise KimiAPIError(
-                        f"chat completion failed after {self._max_retries} attempts: {exc}",
+                        f"chat completion failed after {attempt} attempts: {exc}",
                         retry_after=exc.retry_after,
                         upstream_status_code=exc.upstream_status_code,
                         upstream_error_type=exc.upstream_error_type,
                     ) from exc
                 await asyncio.sleep(
                     exc.retry_after
-                    if exc.retry_after is not None
-                    else min(0.5 * attempt, 2.0)
+                    if exc.retry_after is not None and self._account_pool is None
+                    else (0.0 if self._account_pool is not None else min(0.5 * attempt, 2.0))
                 )
             except Exception as exc:
                 last_error = exc
-                if attempt == self._max_retries:
-                    raise KimiAPIError(
-                        f"chat completion failed after {self._max_retries} attempts: {exc}"
-                    ) from exc
-                await asyncio.sleep(min(0.5 * attempt, 2.0))
+                wrapped = KimiAPIError(
+                    f"Kimi upstream request failed: {exc}",
+                    upstream_error_type="network_error",
+                )
+                if runtime is not None:
+                    self._record_runtime_failure(runtime, wrapped)
+                if produced_output or attempt == attempt_limit:
+                    raise wrapped from exc
+                await asyncio.sleep(0.0 if self._account_pool is not None else min(0.5 * attempt, 2.0))
 
         if last_error and not content_parts and not reasoning_parts:
             if isinstance(last_error, KimiAPIError):
@@ -414,36 +564,68 @@ class Kimi2API:
             sent_role = False
             sent_stop = False
             current_phase: Optional[str] = None
+            attempted_accounts: Set[str] = set()
+            attempt_limit = (
+                max(self._max_retries, self._account_pool.account_count())
+                if self._account_pool is not None and self._account_pool.configured
+                else self._max_retries
+            )
 
-            async for event in self._iter_chat_events(content, context):
-                chunk_id = context.remote_chat_id or context.request_conversation_id
-                if not sent_role:
-                    sent_role = True
-                    yield role_chunk(chunk_id=chunk_id, created=created, model=model)
+            for attempt in range(1, attempt_limit + 1):
+                runtime: Optional[Union[KimiAccountRuntime, _LegacyRuntime]] = None
+                try:
+                    async with self._acquire_runtime(exclude=attempted_accounts) as selected_runtime:
+                        runtime = selected_runtime
+                        if runtime.account_id:
+                            attempted_accounts.add(runtime.account_id)
+                        async for event in self._iter_chat_events_for_runtime(runtime, content, context):
+                            chunk_id = context.remote_chat_id or context.request_conversation_id
+                            if not sent_role:
+                                sent_role = True
+                                yield role_chunk(chunk_id=chunk_id, created=created, model=model)
 
-                delta = self._extract_delta(event, current_phase)
-                current_phase = delta["phase"]
+                            delta = self._extract_delta(event, current_phase)
+                            current_phase = delta["phase"]
 
-                if delta["reasoning_content"]:
-                    yield reasoning_chunk(
-                        chunk_id=chunk_id,
-                        created=created,
-                        model=model,
-                        reasoning_content=delta["reasoning_content"],
-                    )
+                            if delta["reasoning_content"]:
+                                yield reasoning_chunk(
+                                    chunk_id=chunk_id,
+                                    created=created,
+                                    model=model,
+                                    reasoning_content=delta["reasoning_content"],
+                                )
 
-                if delta["content"]:
-                    yield content_chunk(
-                        chunk_id=chunk_id,
-                        created=created,
-                        model=model,
-                        content=delta["content"],
-                    )
+                            if delta["content"]:
+                                yield content_chunk(
+                                    chunk_id=chunk_id,
+                                    created=created,
+                                    model=model,
+                                    content=delta["content"],
+                                )
 
-                if "done" in event:
-                    sent_stop = True
-                    yield stop_chunk(chunk_id=chunk_id, created=created, model=model)
+                            if "done" in event:
+                                sent_stop = True
+                                yield stop_chunk(chunk_id=chunk_id, created=created, model=model)
+                                self._record_runtime_success(runtime)
+                                return
+                        self._record_runtime_success(runtime)
                     break
+                except KimiAPIError as exc:
+                    if runtime is not None:
+                        self._record_runtime_failure(runtime, exc)
+                    if sent_role or attempt == attempt_limit or not self._can_switch_account(exc):
+                        raise
+                    await asyncio.sleep(0.0 if self._account_pool is not None else min(0.5 * attempt, 2.0))
+                except Exception as exc:
+                    wrapped = KimiAPIError(
+                        f"Kimi upstream request failed: {exc}",
+                        upstream_error_type="network_error",
+                    )
+                    if runtime is not None:
+                        self._record_runtime_failure(runtime, wrapped)
+                    if sent_role or attempt == attempt_limit:
+                        raise wrapped from exc
+                    await asyncio.sleep(0.0 if self._account_pool is not None else min(0.5 * attempt, 2.0))
 
             if not sent_stop:
                 chunk_id = context.remote_chat_id or context.request_conversation_id

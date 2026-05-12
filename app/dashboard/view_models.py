@@ -10,6 +10,7 @@ except ImportError:  # pragma: no cover - Python 3.8 compatibility
     from backports.zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..config import Config
+from ..core.kimi_account_pool import get_account_pool
 from ..core.keys import list_keys, total_request_count
 from ..core.logs import (
     RequestLog,
@@ -19,6 +20,7 @@ from ..core.logs import (
     search_logs,
     total_log_count,
 )
+from ..core.token_display import token_preview, token_type_label
 from ..core.token_manager import get_token_manager
 
 _START_TIME: float = 0.0
@@ -106,6 +108,12 @@ def _display_model(log: RequestLog) -> str:
 
 
 def token_info() -> Dict[str, Any]:
+    pool = get_account_pool(required=False)
+    if pool is not None and pool.configured:
+        accounts = pool.account_infos()
+        if accounts:
+            return accounts[0]
+
     try:
         mgr = get_token_manager()
     except RuntimeError:
@@ -139,18 +147,31 @@ def token_info() -> Dict[str, Any]:
         token_status = "有效"
         healthy = True
 
-    token = state.access_token
-    if len(token) > 4:
-        preview = token[:4] + "****"
-    else:
-        preview = "****"
-
     return {
-        "token_type": state.token_type.upper(),
+        "token_type": token_type_label(state.token_type),
         "token_expires": expires_str,
-        "token_preview": preview,
+        "token_preview": token_preview(state.access_token),
         "token_healthy": healthy,
         "token_status": token_status,
+    }
+
+
+def accounts_info() -> Dict[str, Any]:
+    pool = get_account_pool(required=False)
+    if pool is None:
+        return {
+            "accounts": [],
+            "summary": {
+                "total": 0,
+                "enabled": 0,
+                "healthy": 0,
+                "unhealthy": 0,
+                "in_flight": 0,
+            },
+        }
+    return {
+        "accounts": pool.account_infos(),
+        "summary": pool.summary(),
     }
 
 
@@ -221,6 +242,8 @@ def _serialize_logs(entries: List[RequestLog]) -> List[Dict[str, Any]]:
             "upstream_error_type": log.upstream_error_type,
             "upstream_retry_after": log.upstream_retry_after,
             "upstream_summary": _upstream_summary(log),
+            "kimi_account_id": log.kimi_account_id,
+            "kimi_account_name": log.kimi_account_name,
         })
     return result
 
@@ -254,6 +277,7 @@ def _serialize_recent_error(log: RequestLog) -> Dict[str, Any]:
         "path": log.path,
         "status_code": log.status_code,
         "api_key_name": log.api_key_name,
+        "kimi_account_name": log.kimi_account_name,
         "error_message": log.error_message,
         "upstream_summary": _upstream_summary(log),
         "duration_display": fmt_request_duration(log.duration_ms),
@@ -376,6 +400,8 @@ def log_detail(request_id: str, base_url: str) -> Optional[Dict[str, Any]]:
         "client_ip": log.client_ip,
         "user_agent": log.user_agent,
         "api_key_name": log.api_key_name,
+        "kimi_account_id": log.kimi_account_id,
+        "kimi_account_name": log.kimi_account_name,
         "model": _display_model(log),
         "status": log.status,
         "status_code": log.status_code,
@@ -401,6 +427,7 @@ def log_detail(request_id: str, base_url: str) -> Optional[Dict[str, Any]]:
 
 def dashboard_stats() -> Dict[str, Any]:
     ti = token_info()
+    account_summary = accounts_info()["summary"]
     keys = list_keys()
     now = time.time()
     return {
@@ -409,6 +436,11 @@ def dashboard_stats() -> Dict[str, Any]:
         "token_status": ti["token_status"],
         "token_type": ti["token_type"],
         "token_expires": ti["token_expires"],
+        "account_total": account_summary["total"],
+        "account_enabled": account_summary["enabled"],
+        "account_healthy": account_summary["healthy"],
+        "account_unhealthy": account_summary["unhealthy"],
+        "account_in_flight": account_summary["in_flight"],
         "key_count": len(keys),
         "total_requests": total_request_count(),
         "log_count": total_log_count(),

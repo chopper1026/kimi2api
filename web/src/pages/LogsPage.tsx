@@ -132,6 +132,12 @@ function LogMobileCard({
           <p className="mt-1 truncate font-medium">{log.api_key_name || "-"}</p>
         </div>
         <div className="rounded-lg bg-muted/35 px-3 py-2">
+          <p className="text-muted-foreground">Kimi 账号</p>
+          <p className="mt-1 truncate font-medium">
+            {log.kimi_account_name || "-"}
+          </p>
+        </div>
+        <div className="rounded-lg bg-muted/35 px-3 py-2">
           <p className="text-muted-foreground">模型</p>
           <p className="mt-1 truncate font-medium">{modelLabel || "-"}</p>
         </div>
@@ -341,22 +347,24 @@ export default function LogsPage() {
           </div>
 
           <div className="hidden md:block rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden">
-            <Table className="min-w-[900px] table-fixed">
+              <Table className="min-w-[980px] table-fixed">
               <colgroup>
                 <col className="w-[8%]" />
                 <col className="w-[8%]" />
-                <col className="w-[8%]" />
-                <col className="w-[35%]" />
-                <col className="w-[18%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col className="w-[27%]" />
+                <col className="w-[12%]" />
                 <col className="w-[7%]" />
                 <col className="w-[7%]" />
-                <col className="w-[9%]" />
+                <col className="w-[7%]" />
               </colgroup>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-xs">时间</TableHead>
                   <TableHead className="text-xs">Request ID</TableHead>
                   <TableHead className="text-xs">Key</TableHead>
+                  <TableHead className="text-xs">Kimi 账号</TableHead>
                   <TableHead className="text-xs">请求</TableHead>
                   <TableHead className="text-xs">模型</TableHead>
                   <TableHead className="text-xs">状态</TableHead>
@@ -378,8 +386,17 @@ export default function LogsPage() {
                         {requestIdPreview(log)}
                       </code>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell
+                      className="max-w-0 truncate text-xs text-muted-foreground"
+                      title={log.api_key_name || "-"}
+                    >
                       {log.api_key_name || "-"}
+                    </TableCell>
+                    <TableCell
+                      className="max-w-0 truncate text-xs text-muted-foreground"
+                      title={log.kimi_account_name || "-"}
+                    >
+                      {log.kimi_account_name || "-"}
                     </TableCell>
                     <TableCell>
                       <div className="truncate text-xs">

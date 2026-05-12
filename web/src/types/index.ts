@@ -10,6 +10,11 @@ export interface DashboardStats {
   token_status: string
   token_type: string
   token_expires: string
+  account_total: number
+  account_enabled: number
+  account_healthy: number
+  account_unhealthy: number
+  account_in_flight: number
   key_count: number
   total_requests: number
   log_count: number
@@ -31,17 +36,24 @@ export interface RecentError {
   path: string
   status_code: number
   api_key_name: string
+  kimi_account_name: string
   error_message: string
   upstream_summary: string
   duration_display: string
 }
 
 export interface TokenInfo {
+  id?: string
+  name?: string
+  enabled?: boolean
   token_type: string
   token_expires: string
   token_preview: string
   token_healthy: boolean
   token_status: string
+  in_flight?: number
+  max_concurrency?: number
+  min_interval_seconds?: number
 }
 
 export interface TokenSaveResult {
@@ -49,6 +61,39 @@ export interface TokenSaveResult {
   message?: string
   error?: string
   token: TokenInfo
+}
+
+export interface KimiAccountInfo {
+  id: string
+  name: string
+  enabled: boolean
+  token_type: string
+  token_expires: string
+  token_preview: string
+  token_healthy: boolean
+  token_status: string
+  in_flight: number
+  max_concurrency: number
+  min_interval_seconds: number
+}
+
+export interface KimiAccountsSummary {
+  total: number
+  enabled: number
+  healthy: number
+  unhealthy: number
+  in_flight: number
+}
+
+export interface KimiAccountsResponse {
+  accounts: KimiAccountInfo[]
+  summary: KimiAccountsSummary
+}
+
+export interface KimiAccountSaveResult extends KimiAccountsResponse {
+  success: boolean
+  account?: KimiAccountInfo
+  error?: string
 }
 
 export interface TokenValidation {
@@ -76,6 +121,8 @@ export interface LogEntry {
   request_id_short: string
   time_str: string
   api_key_name: string
+  kimi_account_id: string
+  kimi_account_name: string
   model: string
   method: string
   path: string
@@ -131,6 +178,8 @@ export interface LogDetailData {
   client_ip: string
   user_agent: string
   api_key_name: string
+  kimi_account_id: string
+  kimi_account_name: string
   model: string
   status: string
   status_code: number

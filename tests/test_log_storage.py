@@ -54,7 +54,10 @@ def test_request_logs_redact_credentials_and_truncate_bodies(tmp_data_dir, confi
                 "Cookie": "kimi2api_session=session-secret",
                 "X-Trace": "trace-1",
             },
-            request_body='{"token":"refresh-secret","message":"abcdefghijklmnopqrstuvwxyz"}',
+            request_body=(
+                '{"token":"refresh-secret","cached_access_token":"cached-secret",'
+                '"message":"abcdefghijklmnopqrstuvwxyz"}'
+            ),
             response_headers={"Set-Cookie": "session=secret", "Content-Type": "application/json"},
             response_body="x" * 128,
         )
@@ -67,6 +70,7 @@ def test_request_logs_redact_credentials_and_truncate_bodies(tmp_data_dir, confi
     assert detail.request_headers["x-trace"] == "trace-1"
     assert detail.response_headers["set-cookie"] == "[redacted]"
     assert "refresh-secret" not in detail.request_body
+    assert "cached-secret" not in detail.request_body
     assert detail.request_body_truncated is True
     assert detail.response_body == ""
     assert detail.response_body_truncated is False

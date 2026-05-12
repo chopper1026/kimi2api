@@ -6,6 +6,7 @@ def test_admin_primary_pages_center_content_region():
         "web/src/pages/DashboardPage.tsx": 'className="mx-auto w-full max-w-[1320px] space-y-5"',
         "web/src/pages/KeysPage.tsx": 'className="mx-auto w-full max-w-[1320px] space-y-5"',
         "web/src/pages/LogsPage.tsx": 'className="mx-auto w-full max-w-[1320px] space-y-4"',
+        "web/src/pages/TokenPage.tsx": 'className="mx-auto w-full max-w-[1320px] space-y-5"',
     }
 
     for path, class_name in expected_classes.items():
@@ -45,11 +46,21 @@ def test_data_pages_keep_desktop_tables_and_add_mobile_cards():
     assert "hidden md:block" in logs_source
 
 
+def test_logs_desktop_key_columns_are_width_constrained_and_truncated():
+    source = Path("web/src/pages/LogsPage.tsx").read_text()
+
+    assert '<col className="w-[12%]" />' in source
+    assert 'title={log.api_key_name || "-"}' in source
+    assert 'title={log.kimi_account_name || "-"}' in source
+    assert "max-w-0 truncate text-xs text-muted-foreground" in source
+
+
 def test_token_page_has_mobile_first_actions():
     source = Path("web/src/pages/TokenPage.tsx").read_text()
 
-    assert "grid grid-cols-1 gap-2 md:flex" in source
-    assert "w-full md:w-auto" in source
+    assert "grid grid-cols-2 gap-2 border-t border-border/60 pt-3 sm:flex" in source
+    assert "w-full whitespace-nowrap" in source
+    assert "sm:w-auto" in source
 
 
 def test_token_page_places_status_actions_at_card_bottom():
@@ -57,6 +68,18 @@ def test_token_page_places_status_actions_at_card_bottom():
 
     assert '<CardHeader className="pb-3">' in source
     assert 'data-token-actions' in source
-    assert 'className="grid grid-cols-1 gap-2 md:flex md:flex-wrap"' in source
-    assert "border-t border-border/60" not in source
-    assert "md:justify-end" not in source
+    assert "AccountDetail" in source
+    assert "lg:grid-cols-5" in source
+    assert "sm:justify-end" in source
+    assert "md:flex-row md:items-start md:justify-between" not in source
+
+
+def test_token_page_renders_account_pool_controls():
+    source = Path("web/src/pages/TokenPage.tsx").read_text()
+
+    assert "账号池" in source
+    assert "accounts.map" in source
+    assert "api.getTokens" in source
+    assert "api.createTokenAccount" in source
+    assert "api.updateTokenAccount" in source
+    assert "api.deleteTokenAccount" in source

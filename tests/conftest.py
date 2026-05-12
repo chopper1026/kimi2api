@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Config
 from app.core import auth, keys, logs, token_manager
+from app.core import kimi_account_pool
 from app.core.keys import ApiKey
 from app.main import create_app
 
@@ -41,6 +42,8 @@ def restore_config_state():
     finally:
         from app.kimi.transport import close_shared_transports
 
+        if kimi_account_pool._pool is not None:
+            asyncio.run(kimi_account_pool.close_account_pool())
         asyncio.run(close_shared_transports())
         for name, value in previous.items():
             setattr(Config, name, value)
@@ -82,13 +85,19 @@ class TokenManagerStore:
 @pytest.fixture
 def token_manager_store():
     previous_manager = token_manager._manager
+    previous_pool = kimi_account_pool._pool
     token_manager._manager = None
+    kimi_account_pool._pool = None
     try:
         yield TokenManagerStore()
     finally:
+        current_pool = kimi_account_pool._pool
+        if current_pool is not None:
+            asyncio.run(current_pool.close())
         current_manager = token_manager._manager
         if current_manager is not None:
             asyncio.run(current_manager.close())
+        kimi_account_pool._pool = previous_pool
         token_manager._manager = previous_manager
 
 

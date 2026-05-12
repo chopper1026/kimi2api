@@ -345,7 +345,7 @@ function QuickActionsCard() {
 
   const actions = [
     {
-      label: "编辑 Token",
+      label: "管理账号池",
       icon: <Pencil className="size-4" />,
       onClick: () => navigate("/admin/token"),
     },
@@ -416,23 +416,43 @@ export default function DashboardPage() {
         />
         <StatCard
           icon={<Key className="size-4" />}
-          title="Token 状态"
+          title="账号池"
           value={
             data ? (
               <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate">{data.token_status}</span>
+                <span className="truncate">
+                  {data.account_total > 0
+                    ? `${data.account_healthy}/${data.account_enabled} 健康`
+                    : data.token_status}
+                </span>
                 <Badge
-                  variant={data.token_healthy ? "default" : "destructive"}
+                  variant={
+                    (data.account_total > 0
+                      ? data.account_unhealthy === 0
+                      : data.token_healthy)
+                      ? "default"
+                      : "destructive"
+                  }
                   className="text-[10px]"
                 >
-                  {data.token_healthy ? "正常" : "异常"}
+                  {(data.account_total > 0
+                    ? data.account_unhealthy === 0
+                    : data.token_healthy)
+                    ? "正常"
+                    : "异常"}
                 </Badge>
               </div>
             ) : (
               "-"
             )
           }
-          detail={data?.token_type ? `类型：${data.token_type}` : undefined}
+          detail={
+            data
+              ? data.account_total > 0
+                ? `总 ${data.account_total} · 占用 ${data.account_in_flight}`
+                : `类型：${data.token_type}`
+              : undefined
+          }
           loading={loading}
         />
         <StatCard

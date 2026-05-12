@@ -100,3 +100,29 @@ def test_request_logging_captures_upstream_error_metadata(
     assert detail.upstream_status_code == 429
     assert detail.upstream_error_type == "rate_limited"
     assert detail.upstream_retry_after == 1.5
+
+
+def test_request_logging_captures_selected_kimi_account(
+    api_client,
+    configured_api_key,
+    reset_logs,
+):
+    async def account_marker(request):
+        request.state.kimi_account_id = "acc-1"
+        request.state.kimi_account_name = "Work"
+        return JSONResponse({"ok": True})
+
+    api_client.app.router.routes.insert(
+        0,
+        Route("/v1/account-marker-test", account_marker, methods=["GET"]),
+    )
+
+    response = api_client.get(
+        "/v1/account-marker-test",
+        headers={"Authorization": f"Bearer {configured_api_key.key}"},
+    )
+
+    assert response.status_code == 200
+    detail = logs.get_recent_logs()[0]
+    assert detail.kimi_account_id == "acc-1"
+    assert detail.kimi_account_name == "Work"

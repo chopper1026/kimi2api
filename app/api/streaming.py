@@ -36,6 +36,12 @@ def _mark_stream_error(
             request.state.upstream_retry_after = exc.retry_after or 0.0
 
 
+def _mark_kimi_account(request: Optional[Request], account: Dict[str, str]) -> None:
+    if request is not None:
+        request.state.kimi_account_id = account.get("id", "")
+        request.state.kimi_account_name = account.get("name", "")
+
+
 async def _stream_chat_chunks(
     stream: AsyncIterator[ChatCompletionChunk],
     response_model: str,
@@ -97,7 +103,7 @@ async def _create_streaming_chat_response(
 ) -> AsyncIterator[str]:
     client: Optional[Kimi2API] = None
     try:
-        client = Kimi2API()
+        client = Kimi2API(on_account_used=lambda account: _mark_kimi_account(request, account))
         stream = await client.chat.completions.create(
             model=model,
             model_spec=model_spec,
@@ -135,7 +141,7 @@ async def _create_streaming_responses_response(
 ) -> AsyncIterator[str]:
     client: Optional[Kimi2API] = None
     try:
-        client = Kimi2API()
+        client = Kimi2API(on_account_used=lambda account: _mark_kimi_account(request, account))
         stream = await client.chat.completions.create(
             model=model,
             model_spec=model_spec,

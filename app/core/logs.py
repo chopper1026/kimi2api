@@ -60,6 +60,8 @@ class RequestLog:
     upstream_status_code: int = 0
     upstream_error_type: str = ""
     upstream_retry_after: float = 0.0
+    kimi_account_id: str = ""
+    kimi_account_name: str = ""
 
 
 def _db_path() -> str:
@@ -104,13 +106,17 @@ def _init_db(conn: sqlite3.Connection) -> None:
             error_message TEXT NOT NULL,
             upstream_status_code INTEGER NOT NULL DEFAULT 0,
             upstream_error_type TEXT NOT NULL DEFAULT '',
-            upstream_retry_after REAL NOT NULL DEFAULT 0
+            upstream_retry_after REAL NOT NULL DEFAULT 0,
+            kimi_account_id TEXT NOT NULL DEFAULT '',
+            kimi_account_name TEXT NOT NULL DEFAULT ''
         )
         """
     )
     _ensure_column(conn, "upstream_status_code", "INTEGER NOT NULL DEFAULT 0")
     _ensure_column(conn, "upstream_error_type", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "upstream_retry_after", "REAL NOT NULL DEFAULT 0")
+    _ensure_column(conn, "kimi_account_id", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(conn, "kimi_account_name", "TEXT NOT NULL DEFAULT ''")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(timestamp DESC)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_status ON request_logs(status)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_model ON request_logs(model)")
@@ -394,9 +400,9 @@ def log_request(entry: RequestLog) -> None:
                     response_headers, response_body, response_body_truncated,
                     raw_stream_body, parsed_response_text, parsed_reasoning_content,
                     error_message, upstream_status_code, upstream_error_type,
-                    upstream_retry_after
+                    upstream_retry_after, kimi_account_id, kimi_account_name
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     entry.request_id,
@@ -425,6 +431,8 @@ def log_request(entry: RequestLog) -> None:
                     int(entry.upstream_status_code or 0),
                     entry.upstream_error_type,
                     float(entry.upstream_retry_after or 0.0),
+                    entry.kimi_account_id,
+                    entry.kimi_account_name,
                 ),
             )
             _trim_logs(conn)
@@ -461,6 +469,8 @@ def _row_to_entry(row: sqlite3.Row) -> RequestLog:
         upstream_status_code=row["upstream_status_code"],
         upstream_error_type=row["upstream_error_type"],
         upstream_retry_after=row["upstream_retry_after"],
+        kimi_account_id=row["kimi_account_id"],
+        kimi_account_name=row["kimi_account_name"],
     )
 
 
@@ -559,6 +569,8 @@ def _log_query_parts(
             "error_message",
             "upstream_status_code",
             "upstream_error_type",
+            "kimi_account_id",
+            "kimi_account_name",
         ),
         q.strip(),
     )

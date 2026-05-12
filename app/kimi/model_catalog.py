@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ..config import Config
+from ..core.kimi_account_pool import get_account_pool
 from ..core.token_manager import get_token_manager
 from .protocol import KimiAPIError
 from .transport import (
@@ -172,6 +173,13 @@ def parse_model_catalog(data: Dict[str, Any]) -> KimiModelCatalog:
 
 
 async def _optional_access_token() -> Optional[str]:
+    pool = get_account_pool(required=False)
+    if pool is not None and pool.configured:
+        try:
+            async with pool.acquire() as runtime:
+                return await runtime.token_manager.get_access_token()
+        except Exception:
+            return None
     try:
         return await get_token_manager().get_access_token()
     except RuntimeError:

@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, replace
-from typing import Optional
+from typing import Callable, Optional
 
 from ..config import Config
 from ..kimi.protocol import KimiAPIError, detect_token_type, parse_jwt
@@ -13,6 +13,7 @@ from ..kimi.transport import (
     process_session_id,
     retry_after_seconds,
 )
+from ..kimi.transport import KimiTransport
 
 logger = logging.getLogger("kimi2api.token_manager")
 
@@ -28,17 +29,42 @@ class TokenState:
     token_type: str
 
 
+TokenRefreshCallback = Callable[[TokenState], None]
+
+
 class TokenManager:
-    def __init__(self, raw_token: str, base_url: Optional[str] = None):
+    def __init__(
+        self,
+        raw_token: str,
+        base_url: Optional[str] = None,
+        *,
+        cached_access_token: str = "",
+        cached_access_expires_at: float = 0.0,
+        device_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        transport: Optional[KimiTransport] = None,
+        on_token_refreshed: Optional[TokenRefreshCallback] = None,
+    ):
         self._base_url = (base_url or Config.KIMI_API_BASE).rstrip("/")
         self._lock = asyncio.Lock()
-        self._transport = get_shared_transport(base_url=self._base_url, timeout=30.0)
-        self._device_id = load_or_create_client_identity().device_id
-        self._session_id = process_session_id()
-        self._state = self._initialize(raw_token)
+        self._transport = transport or get_shared_transport(base_url=self._base_url, timeout=30.0)
+        self._device_id = device_id or load_or_create_client_identity().device_id
+        self._session_id = session_id or process_session_id()
+        self._on_token_refreshed = on_token_refreshed
+        self._state = self._initialize(
+            raw_token,
+            cached_access_token=cached_access_token,
+            cached_access_expires_at=cached_access_expires_at,
+        )
         self._last_refresh_error: Optional[KimiAPIError] = None
 
-    def _initialize(self, raw_token: str) -> TokenState:
+    def _initialize(
+        self,
+        raw_token: str,
+        *,
+        cached_access_token: str = "",
+        cached_access_expires_at: float = 0.0,
+    ) -> TokenState:
         token_type = detect_token_type(raw_token)
         if token_type == "jwt":
             payload = parse_jwt(raw_token)
@@ -49,6 +75,22 @@ class TokenManager:
                 expires_at=expires_at,
                 token_type="jwt",
             )
+        cached_token = cached_access_token.strip()
+        if cached_token and detect_token_type(cached_token) == "jwt":
+            payload = parse_jwt(cached_token)
+            parsed_expires_at = payload.get("exp", 0.0) if payload else 0.0
+            try:
+                fallback_expires_at = float(cached_access_expires_at or 0.0)
+            except (TypeError, ValueError):
+                fallback_expires_at = 0.0
+            expires_at = float(parsed_expires_at or fallback_expires_at)
+            if expires_at > 0:
+                return TokenState(
+                    access_token=cached_token,
+                    refresh_token=raw_token,
+                    expires_at=expires_at,
+                    token_type="jwt",
+                )
         return TokenState(
             access_token=raw_token,
             refresh_token=raw_token,
@@ -119,6 +161,7 @@ class TokenManager:
                         "Token refreshed successfully, expires_at=%.0f",
                         expires_at,
                     )
+                    self._notify_token_refreshed()
                     self._last_refresh_error = None
                     return True
                 self._last_refresh_error = KimiAPIError(
@@ -153,6 +196,14 @@ class TokenManager:
                 )
             logger.warning("Token refresh error: %s", exc)
             return False
+
+    def _notify_token_refreshed(self) -> None:
+        if self._on_token_refreshed is None:
+            return
+        try:
+            self._on_token_refreshed(replace(self._state))
+        except Exception as exc:
+            logger.warning("Failed to persist refreshed Kimi access token cache: %s", exc)
 
     async def invalidate_and_retry(self) -> str:
         async with self._lock:

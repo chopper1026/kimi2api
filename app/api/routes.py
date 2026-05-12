@@ -29,6 +29,11 @@ from .streaming import (
 router = APIRouter()
 
 
+def _set_kimi_account(request: Request, account: Dict[str, str]) -> None:
+    request.state.kimi_account_id = account.get("id", "")
+    request.state.kimi_account_name = account.get("name", "")
+
+
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
@@ -119,7 +124,7 @@ async def create_chat_completion(request: Request) -> Any:
             },
         )
 
-    async with Kimi2API() as client:
+    async with Kimi2API(on_account_used=lambda account: _set_kimi_account(request, account)) as client:
         result = await client.chat.completions.create(
             model=features["model"],
             model_spec=features["model_spec"],
@@ -156,7 +161,7 @@ async def create_completion(request: Request) -> Dict[str, Any]:
     request.state.request_model = features["request_model"]
     conversation_id = _extract_conversation_id(payload)
 
-    async with Kimi2API() as client:
+    async with Kimi2API(on_account_used=lambda account: _set_kimi_account(request, account)) as client:
         result = await client.chat.completions.create(
             model=features["model"],
             model_spec=features["model_spec"],
@@ -236,7 +241,7 @@ async def create_response(request: Request) -> Any:
             },
         )
 
-    async with Kimi2API() as client:
+    async with Kimi2API(on_account_used=lambda account: _set_kimi_account(request, account)) as client:
         result = await client.chat.completions.create(
             model=features["model"],
             model_spec=features["model_spec"],

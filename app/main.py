@@ -220,6 +220,8 @@ def _log_v1_request(
         response_body=_body_to_text(response_body),
         raw_stream_body=_body_to_text(response_body) if is_stream else "",
         error_message=message,
+        kimi_account_id=str(getattr(request.state, "kimi_account_id", "") or ""),
+        kimi_account_name=str(getattr(request.state, "kimi_account_name", "") or ""),
         **upstream_metadata,
     ))
 
@@ -297,6 +299,8 @@ def create_app(initialize: bool = True, static_dir: Optional[str] = None) -> Fas
         request.state.upstream_status_code = 0
         request.state.upstream_error_type = ""
         request.state.upstream_retry_after = 0.0
+        request.state.kimi_account_id = ""
+        request.state.kimi_account_name = ""
         request_body = await request.body()
         request = _request_with_body(request, request_body)
 

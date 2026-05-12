@@ -120,9 +120,9 @@ export default function LogDetailPage() {
         </Card>
         <Card className="border-border/60 shadow-sm">
           <CardContent className="pt-4 pb-4">
-            <p className="text-[11px] text-muted-foreground">Key 名称</p>
+            <p className="text-[11px] text-muted-foreground">Kimi 账号</p>
             <p className="mt-1 text-xl font-bold truncate">
-              {data.api_key_name || "-"}
+              {data.kimi_account_name || "-"}
             </p>
           </CardContent>
         </Card>
@@ -141,6 +141,14 @@ export default function LogDetailPage() {
             <div>
               <span className="text-muted-foreground">模型：</span>
               {data.model || "-"}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Key 名称：</span>
+              {data.api_key_name || "-"}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Kimi 账号：</span>
+              {data.kimi_account_name || "-"}
             </div>
             <div>
               <span className="text-muted-foreground">请求：</span>

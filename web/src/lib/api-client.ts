@@ -75,10 +75,44 @@ export const api = {
 
   getToken: () => request<import("@/types").TokenInfo>("/token"),
 
+  getTokens: () => request<import("@/types").KimiAccountsResponse>("/tokens"),
+
   saveToken: (raw_token: string) =>
     request<import("@/types").TokenSaveResult>("/token", {
       method: "POST",
       body: JSON.stringify({ raw_token }),
+    }),
+
+  createTokenAccount: (payload: {
+    name?: string
+    raw_token: string
+    enabled?: boolean
+    max_concurrency?: number
+    min_interval_seconds?: number
+  }) =>
+    request<import("@/types").KimiAccountSaveResult>("/tokens", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateTokenAccount: (
+    id: string,
+    payload: {
+      name?: string
+      raw_token?: string
+      enabled?: boolean
+      max_concurrency?: number
+      min_interval_seconds?: number
+    },
+  ) =>
+    request<import("@/types").KimiAccountSaveResult>(`/tokens/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteTokenAccount: (id: string) =>
+    request<import("@/types").KimiAccountSaveResult>(`/tokens/${id}`, {
+      method: "DELETE",
     }),
 
   refreshToken: () =>
@@ -86,8 +120,16 @@ export const api = {
       method: "POST",
     }),
 
+  refreshTokenAccount: (id: string) =>
+    request<import("@/types").KimiAccountSaveResult>(`/tokens/${id}/refresh`, {
+      method: "POST",
+    }),
+
   validateToken: () =>
     request<import("@/types").TokenValidation>("/token/validate"),
+
+  validateTokenAccount: (id: string) =>
+    request<import("@/types").TokenValidation>(`/tokens/${id}/validate`),
 
   getKeys: () => request<import("@/types").KeysResponse>("/keys"),
 
