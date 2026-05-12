@@ -186,6 +186,15 @@ cp .env.example .env
 docker compose up -d
 ```
 
+**更新版本**
+```bash
+cd kimi2api/
+# 拉取最新代码
+git pull
+# 重新构建
+docker compose up -d --build
+```
+
 ## 获取kimi token
 
 自行登录官网在storage中获取access_token或refresh token
