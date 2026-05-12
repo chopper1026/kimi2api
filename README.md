@@ -9,46 +9,61 @@ Kimi2API 是一个基于 Kimi Web 协议封装的 OpenAI 兼容 API 服务。它
 
 ## 界面预览
 
-以下截图使用脱敏演示数据，仅用于展示管理面板布局。点击缩略图可打开原图查看。
+以下截图使用脱敏演示数据，仅用于展示管理面板布局。
 
 <table>
   <tr>
     <td align="center" width="33%">
-      <a href="docs/images/admin-login.png">
-        <img src="docs/images/admin-login.png" alt="登录页" width="260">
-      </a>
-      <br>
-      <sub>登录页</sub>
+      <details>
+        <summary>
+          <strong>登录页</strong><br>
+          <img src="docs/images/admin-login.png" alt="登录页" width="260">
+        </summary>
+        <br>
+        <img src="docs/images/admin-login.png" alt="登录页大图" width="960">
+      </details>
     </td>
     <td align="center" width="33%">
-      <a href="docs/images/admin-dashboard.png">
-        <img src="docs/images/admin-dashboard.png" alt="概览" width="260">
-      </a>
-      <br>
-      <sub>概览</sub>
+      <details>
+        <summary>
+          <strong>概览</strong><br>
+          <img src="docs/images/admin-dashboard.png" alt="概览" width="260">
+        </summary>
+        <br>
+        <img src="docs/images/admin-dashboard.png" alt="概览大图" width="960">
+      </details>
     </td>
     <td align="center" width="33%">
-      <a href="docs/images/admin-accounts.png">
-        <img src="docs/images/admin-accounts.png" alt="账号管理" width="260">
-      </a>
-      <br>
-      <sub>账号管理</sub>
+      <details>
+        <summary>
+          <strong>账号管理</strong><br>
+          <img src="docs/images/admin-accounts.png" alt="账号管理" width="260">
+        </summary>
+        <br>
+        <img src="docs/images/admin-accounts.png" alt="账号管理大图" width="960">
+      </details>
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <a href="docs/images/admin-api-keys.png">
-        <img src="docs/images/admin-api-keys.png" alt="API Keys" width="260">
-      </a>
-      <br>
-      <sub>API Keys</sub>
+      <details>
+        <summary>
+          <strong>API Keys</strong><br>
+          <img src="docs/images/admin-api-keys.png" alt="API Keys" width="260">
+        </summary>
+        <br>
+        <img src="docs/images/admin-api-keys.png" alt="API Keys 大图" width="960">
+      </details>
     </td>
     <td align="center" width="33%">
-      <a href="docs/images/admin-request-logs.png">
-        <img src="docs/images/admin-request-logs.png" alt="请求日志" width="260">
-      </a>
-      <br>
-      <sub>请求日志</sub>
+      <details>
+        <summary>
+          <strong>请求日志</strong><br>
+          <img src="docs/images/admin-request-logs.png" alt="请求日志" width="260">
+        </summary>
+        <br>
+        <img src="docs/images/admin-request-logs.png" alt="请求日志大图" width="960">
+      </details>
     </td>
     <td width="33%"></td>
   </tr>
