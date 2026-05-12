@@ -200,12 +200,225 @@ html[data-theme="tungsten-dark"],
   }
 }
 
+@keyframes login-page-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes login-brand-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes login-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes login-panel-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.975);
+    filter: blur(6px);
+  }
+}
+
+@keyframes login-bridge-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes login-bridge-mark-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.86);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes login-bridge-copy-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-bridge-progress {
+  from {
+    transform: translateX(-105%);
+  }
+  to {
+    transform: translateX(125%);
+  }
+}
+
+@keyframes login-error-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes admin-shell-enter {
+  from {
+    opacity: 0.65;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.login-page-shell {
+  animation: login-page-enter 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-brand {
+  animation: login-brand-enter 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-panel-layer {
+  position: relative;
+  z-index: 1;
+}
+
+.login-card {
+  animation: login-card-enter 560ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    border-color 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
+
+.login-card:focus-within {
+  border-color: color-mix(in oklch, var(--primary) 34%, var(--border));
+  box-shadow: 0 18px 45px color-mix(in oklch, var(--foreground) 8%, transparent);
+  transform: translateY(-1px);
+}
+
+.login-card-bridge {
+  border-color: color-mix(in oklch, var(--success) 42%, var(--border));
+}
+
+.login-panel-exit {
+  animation: login-panel-exit 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.login-error {
+  animation: login-error-enter 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.login-bridge-page {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 2rem;
+  background:
+    radial-gradient(circle at 50% 42%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 32%),
+    var(--background);
+  animation: login-bridge-enter 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-bridge-mark {
+  animation: login-bridge-mark-enter 520ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+  border-radius: var(--radius-xl);
+  box-shadow: 0 24px 70px color-mix(in oklch, var(--primary) 20%, transparent);
+}
+
+.login-bridge-copy {
+  margin-top: 1rem;
+  text-align: center;
+  animation: login-bridge-copy-enter 420ms cubic-bezier(0.16, 1, 0.3, 1) 160ms both;
+}
+
+.login-bridge-progress {
+  position: relative;
+  width: min(12rem, 58vw);
+  height: 0.375rem;
+  margin-top: 1.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--primary) 14%, var(--muted));
+}
+
+.login-bridge-progress span {
+  display: block;
+  width: 46%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  animation: login-bridge-progress 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .admin-route-content {
   animation: admin-route-enter 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.admin-shell-enter {
+  animation: admin-shell-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .login-page-shell,
+  .login-brand,
+  .login-panel-exit,
+  .login-card,
+  .login-card-bridge,
+  .login-bridge-page,
+  .login-bridge-mark,
+  .login-bridge-copy,
+  .login-bridge-progress span,
+  .login-error,
+  .admin-shell-enter,
   .admin-route-content {
     animation: none;
+    transition-duration: 0.01ms;
   }
 }

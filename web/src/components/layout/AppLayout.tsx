@@ -143,7 +143,10 @@ export default function AppLayout() {
     (location.pathname.startsWith("/admin/logs/") ? "日志详情" : "Kimi2API")
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background md:h-screen md:flex-row">
+    <div
+      data-admin-shell
+      className="admin-shell-enter flex min-h-dvh flex-col bg-background md:h-screen md:flex-row"
+    >
       {/* Sidebar */}
       <aside className="hidden w-60 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
         {/* Brand */}
