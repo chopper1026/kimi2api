@@ -464,3 +464,5 @@ git diff --check
 ## 致谢
 
 感谢原项目 [XxxXTeam/kimi2api](https://github.com/XxxXTeam/kimi2api) 的基础实现和思路，本项目在此基础上继续二次开发。
+
+本项目已在 [LINUX DO](https://linux.do/) 社区 发布，感谢社区的支持与反馈。
