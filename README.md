@@ -172,7 +172,7 @@ http://127.0.0.1:8000
 http://127.0.0.1:8000/admin
 ```
 
-### 3. Docker Compose 部署
+### 3. Docker Compose 部署（推荐）
 
 ```bash
 # 拉取代码
