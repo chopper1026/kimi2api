@@ -101,6 +101,69 @@ def _jwt_access_token() -> str:
     ])
 
 
+def test_dashboard_stats_reports_unconfigured_when_account_pool_is_empty(
+    token_manager_store,
+):
+    from app.core.kimi_account_pool import init_account_pool
+    from app.core.token_manager import TokenManager
+    from app.dashboard.view_models import dashboard_stats, token_info
+
+    token_manager_store.set(TokenManager(_jwt_access_token()))
+    init_account_pool([])
+
+    info = token_info()
+    stats = dashboard_stats()
+
+    assert info["token_status"] == "未配置"
+    assert info["token_type"] == "未配置"
+    assert info["token_healthy"] is False
+    assert stats["account_total"] == 0
+    assert stats["token_status"] == "未配置"
+    assert stats["token_healthy"] is False
+
+
+def test_initialize_runtime_respects_empty_saved_account_pool(
+    tmp_data_dir,
+    config_override,
+    token_manager_store,
+):
+    from app.bootstrap import initialize_runtime
+    from app.core.kimi_account_pool import get_account_pool
+    from app.core.kimi_account_store import save_kimi_accounts
+    from app.core.kimi_token_store import save_kimi_token
+    from app.core.token_manager import get_token_manager
+
+    config_override(KIMI_TOKEN="")
+    save_kimi_accounts([])
+    save_kimi_token(_jwt_access_token())
+
+    initialize_runtime()
+
+    pool = get_account_pool(required=False)
+    assert pool is not None
+    assert pool.account_count() == 0
+    with pytest.raises(RuntimeError):
+        get_token_manager()
+
+
+@pytest.mark.asyncio
+async def test_client_treats_empty_account_pool_as_unconfigured(
+    token_manager_store,
+):
+    from app.core.kimi_account_pool import init_account_pool
+    from app.core.token_manager import TokenManager
+    from app.kimi import KimiAPIError
+    from app.kimi.client import Kimi2API
+
+    token_manager_store.set(TokenManager(_jwt_access_token()))
+    init_account_pool([])
+
+    client = Kimi2API()
+    with pytest.raises(KimiAPIError, match="Kimi token is not configured"):
+        async with client._acquire_runtime():
+            pass
+
+
 @pytest.mark.asyncio
 async def test_pool_selects_least_busy_account_and_round_robins(tmp_data_dir):
     from app.core.kimi_account_pool import KimiAccountPool

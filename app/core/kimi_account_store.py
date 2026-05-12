@@ -35,6 +35,10 @@ def _accounts_file() -> str:
     return data_path(ACCOUNTS_FILE_NAME)
 
 
+def kimi_accounts_file_exists() -> bool:
+    return os.path.exists(_accounts_file())
+
+
 def _legacy_token_file() -> str:
     return data_path(LEGACY_TOKEN_FILE_NAME)
 

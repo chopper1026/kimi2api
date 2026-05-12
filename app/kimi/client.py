@@ -170,7 +170,7 @@ class Kimi2API:
             timeout=self._timeout,
             max_retries=self._max_retries,
         )
-        if self._account_pool is None or not self._account_pool.configured:
+        if self._account_pool is None:
             try:
                 token_manager = get_token_manager()
             except RuntimeError as exc:

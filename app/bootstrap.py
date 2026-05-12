@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from .config import Config
 from .core.auth import init_auth
 from .core.kimi_account_pool import close_account_pool, init_account_pool
-from .core.kimi_account_store import load_kimi_accounts
+from .core.kimi_account_store import kimi_accounts_file_exists, load_kimi_accounts
 from .core.keys import init_key_store
 from .core.kimi_token_store import load_configured_kimi_token
 from .core.token_manager import close_token_manager, init_token_manager
@@ -22,10 +22,13 @@ def load_runtime_config() -> None:
 
 
 def initialize_runtime() -> None:
+    accounts_file_exists = kimi_accounts_file_exists()
     accounts = load_kimi_accounts()
     if accounts:
         init_account_pool(accounts)
         init_token_manager(accounts[0].raw_token)
+    elif accounts_file_exists:
+        init_account_pool([])
     elif raw_token := load_configured_kimi_token():
         init_token_manager(raw_token)
     else:

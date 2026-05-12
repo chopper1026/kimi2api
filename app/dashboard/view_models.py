@@ -107,23 +107,28 @@ def _display_model(log: RequestLog) -> str:
     return log.model
 
 
+def _unconfigured_token_info() -> Dict[str, Any]:
+    return {
+        "token_type": "未配置",
+        "token_expires": "-",
+        "token_preview": "-",
+        "token_healthy": False,
+        "token_status": "未配置",
+    }
+
+
 def token_info() -> Dict[str, Any]:
     pool = get_account_pool(required=False)
-    if pool is not None and pool.configured:
+    if pool is not None:
         accounts = pool.account_infos()
         if accounts:
             return accounts[0]
+        return _unconfigured_token_info()
 
     try:
         mgr = get_token_manager()
     except RuntimeError:
-        return {
-            "token_type": "未配置",
-            "token_expires": "-",
-            "token_preview": "-",
-            "token_healthy": False,
-            "token_status": "未配置",
-        }
+        return _unconfigured_token_info()
 
     state = mgr.get_state()
     now = time.time()
