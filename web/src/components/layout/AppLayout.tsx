@@ -18,14 +18,14 @@ import { useState, useRef, useEffect } from "react"
 
 const navItems = [
   { to: "/admin/dashboard", label: "概览", icon: LayoutDashboard },
-  { to: "/admin/token", label: "授权管理", icon: ShieldCheck },
+  { to: "/admin/token", label: "账号管理", icon: ShieldCheck },
   { to: "/admin/keys", label: "API Keys", icon: Key },
   { to: "/admin/logs", label: "请求日志", icon: ClipboardList },
 ]
 
 const pageTitles: Record<string, string> = {
   "/admin/dashboard": "概览",
-  "/admin/token": "授权管理",
+  "/admin/token": "账号管理",
   "/admin/keys": "API Keys",
   "/admin/logs": "请求日志",
 }

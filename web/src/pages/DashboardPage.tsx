@@ -319,7 +319,7 @@ function LogPolicyCard({
         />
         <PolicyItem
           icon={<FileText className="size-4" />}
-          label="正文上限"
+          label="日志正文上限"
           value={data?.request_log_body_limit ?? "-"}
           loading={loading}
         />

@@ -22,6 +22,14 @@ def test_admin_layout_adds_mobile_navigation_without_removing_desktop_sidebar():
     assert "md:flex" in source
 
 
+def test_admin_layout_uses_account_management_copy():
+    source = Path("web/src/components/layout/AppLayout.tsx").read_text()
+
+    assert 'label: "账号管理"' in source
+    assert '"/admin/token": "账号管理"' in source
+    assert "授权管理" not in source
+
+
 def test_admin_content_uses_route_transition_animation():
     layout_source = Path("web/src/components/layout/AppLayout.tsx").read_text()
     css_source = Path("web/src/index.css").read_text()
