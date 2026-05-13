@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import {
   CheckCircle2,
+  CircleAlert,
   Pencil,
   Plus,
   RefreshCw,
@@ -43,6 +44,12 @@ interface AccountFormState {
   enabled: boolean
   maxConcurrency: string
   minIntervalSeconds: string
+}
+
+interface ValidationDialogState {
+  account: string
+  result?: TokenValidation
+  error?: string
 }
 
 const emptySummary: KimiAccountsSummary = {
@@ -123,11 +130,8 @@ export default function TokenPage() {
   const [refreshSuccess, setRefreshSuccess] = useState<string | null>(null)
 
   const [validating, setValidating] = useState<string | null>(null)
-  const [validationError, setValidationError] = useState<string | null>(null)
-  const [validation, setValidation] = useState<{
-    account: string
-    result: TokenValidation
-  } | null>(null)
+  const [validationDialogOpen, setValidationDialogOpen] = useState(false)
+  const [validation, setValidation] = useState<ValidationDialogState | null>(null)
   const [accountPage, setAccountPage] = useState(1)
 
   const applyAccounts = (result: {
@@ -223,14 +227,17 @@ export default function TokenPage() {
 
   const handleValidate = async (account: KimiAccountInfo) => {
     setValidating(account.id)
-    setValidationError(null)
+    setValidation(null)
+    setValidationDialogOpen(false)
     try {
       const result = await api.validateTokenAccount(account.id)
       setValidation({ account: account.name, result })
+      setValidationDialogOpen(true)
       await loadToken()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "验证失败"
-      setValidationError(msg)
+      setValidation({ account: account.name, error: msg })
+      setValidationDialogOpen(true)
     } finally {
       setValidating(null)
     }
@@ -556,41 +563,56 @@ export default function TokenPage() {
         </CardContent>
       </Card>
 
-      {validationError && (
-        <Alert variant="destructive">
-          <AlertDescription>{validationError}</AlertDescription>
-        </Alert>
-      )}
-
-      {validation && (
-        <Card className="border-border/60 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <CheckCircle2 className="h-4 w-4" />
-              验证结果 · {validation.account}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <p className="text-xs text-muted-foreground">有效状态</p>
-              <div className="mt-0.5">
-                <Badge variant={validation.result.valid ? "default" : "destructive"}>
-                  {validation.result.valid ? "有效" : "无效"}
-                </Badge>
-              </div>
-            </div>
-            {validation.result.subscription &&
-              Object.keys(validation.result.subscription).length > 0 && (
-                <div>
-                  <p className="mb-1 text-xs text-muted-foreground">订阅信息</p>
-                  <pre className="max-h-80 overflow-auto rounded-lg bg-muted/60 p-3 text-xs">
-                    {JSON.stringify(validation.result.subscription, null, 2)}
-                  </pre>
-                </div>
+      <Dialog open={validationDialogOpen} onOpenChange={setValidationDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {validation?.error || validation?.result?.valid === false ? (
+                <CircleAlert className="h-4 w-4 text-destructive" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 text-primary" />
               )}
-          </CardContent>
-        </Card>
-      )}
+              验证结果 · {validation?.account || "Kimi 账号"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {validation?.error && (
+            <Alert variant="destructive">
+              <AlertDescription>{validation.error}</AlertDescription>
+            </Alert>
+          )}
+
+          {validation?.result && (
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground">有效状态</p>
+                <div className="mt-0.5">
+                  <Badge
+                    variant={validation.result.valid ? "default" : "destructive"}
+                  >
+                    {validation.result.valid ? "有效" : "无效"}
+                  </Badge>
+                </div>
+              </div>
+              {validation.result.subscription &&
+                Object.keys(validation.result.subscription).length > 0 && (
+                  <div>
+                    <p className="mb-1 text-xs text-muted-foreground">订阅信息</p>
+                    <pre className="max-h-80 overflow-auto rounded-lg bg-muted/60 p-3 text-xs">
+                      {JSON.stringify(validation.result.subscription, null, 2)}
+                    </pre>
+                  </div>
+                )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              关闭
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

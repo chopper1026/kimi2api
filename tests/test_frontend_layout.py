@@ -161,3 +161,12 @@ def test_token_page_renders_account_pool_controls():
     assert "api.createTokenAccount" in source
     assert "api.updateTokenAccount" in source
     assert "api.deleteTokenAccount" in source
+
+
+def test_token_validation_result_opens_dialog():
+    source = Path("web/src/pages/TokenPage.tsx").read_text()
+
+    assert "validationDialogOpen" in source
+    assert "<Dialog open={validationDialogOpen}" in source
+    assert "setValidationDialogOpen(true)" in source
+    assert "validationError" not in source
