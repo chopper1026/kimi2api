@@ -176,7 +176,7 @@ http://127.0.0.1:8000/admin
 
 ```bash
 # 拉取代码
-git pull https://github.com/chopper1026/kimi2api.git
+git clone https://github.com/chopper1026/kimi2api.git
 cd kimi2api/
 # 创建data/
 mkdir data
