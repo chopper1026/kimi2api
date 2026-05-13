@@ -5,15 +5,21 @@ RUN npm ci
 COPY web/ .
 RUN npm run build
 
-FROM python:3.12-slim AS base
-
+FROM python:3.12-slim AS python-builder
 RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project --compile-bytecode
 
+FROM python:3.12-slim AS runtime
+
+WORKDIR /app
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+COPY --from=python-builder /app/.venv /app/.venv
 COPY app/ app/
 COPY --from=web-builder /app/static/dist/ app/static/dist/
 COPY run.py .
@@ -27,4 +33,4 @@ ENV TZ=Asia/Shanghai
 
 EXPOSE 8000
 
-CMD ["uv", "run", "python", "run.py"]
+CMD ["python", "run.py"]
