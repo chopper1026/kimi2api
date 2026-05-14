@@ -1,6 +1,6 @@
 # Kimi2API
 
-Kimi2API 是一个基于 Kimi Web 协议封装的 OpenAI 兼容 API 服务。它把 Kimi 的聊天能力转换成常见的 `/v1` 接口，方便 OpenAI SDK、Cherry Studio、LobeChat、NextChat、one-api 风格客户端接入。
+Kimi2API 是一个基于 Kimi Web 协议封装的 OpenAI 兼容 API 服务。它把 Kimi 的聊天能力转换成常见的 `/v1` 接口，方便 OpenAI SDK、LobeChat、NextChat、one-api 风格客户端接入。
 _（简单来说，这就是用来玩酒馆的，没有做toolcall之类编程方向的优化，因为2api的能力懂得都懂）_
 
 项目内置 React 管理面板，支持 Kimi 账号池、对外 API Key、请求日志、运行概览和基础运维操作。
@@ -344,8 +344,7 @@ curl http://127.0.0.1:8000/v1/responses \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your_api_key_here" \
   -d '{
-    "model": "kimi-k2.6",
-    "enable_web_search": true,
+    "model": "kimi-k2.6-search",
     "input": "今天有什么值得关注的 AI 新闻？"
   }'
 ```
@@ -358,20 +357,23 @@ curl http://127.0.0.1:8000/v1/responses \
 - `kimi-k2.6-thinking`
 - `kimi-k2.6-agent`
 - `kimi-k2.6-agent-swarm`
+- `kimi-k2.6-search`
+- `kimi-k2.6-thinking-search`
 
-`enable_thinking` / `reasoning` 只能与所选模型的思考能力保持一致。例如 `kimi-k2.6` 搭配 `enable_thinking: true` 会返回参数错误。搜索是工具开关，不再作为模型别名：
+`enable_thinking` / `reasoning` 只能与所选模型的思考能力保持一致。例如 `kimi-k2.6` 搭配 `enable_thinking: true` 会返回参数错误。
+
+普通联网搜索仅支持 `kimi-k2.6` 和 `kimi-k2.6-thinking`。优先使用 search 后缀模型，适合不会透传自定义联网参数的客户端：
 
 ```json
 {
-  "model": "kimi-k2.6",
-  "enable_web_search": true
+  "model": "kimi-k2.6-search"
 }
 ```
 
 兼容字段：
 
 - thinking：`enable_thinking`、`reasoning`
-- search：`enable_web_search`、`web_search`、`search`
+- search：`kimi-k2.6-search`、`kimi-k2.6-thinking-search`；也兼容 OpenAI 风格 `tools: [{"type": "web_search"}]`、`tools: [{"type": "web_search_preview"}]`、`web_search_options`；旧字段 `enable_web_search`、`web_search`、`search` 继续保留以兼容已有接入
 
 ### 上下文处理
 

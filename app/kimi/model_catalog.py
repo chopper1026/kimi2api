@@ -28,16 +28,28 @@ class KimiModelSpec:
     display_name: str
     scenario: str
     thinking: bool = False
+    supports_web_search: bool = False
+    base_model_id: str = ""
+    force_web_search: bool = False
     kimi_plus_id: str = ""
     agent_mode: str = ""
     description: str = ""
     input_placeholder: str = ""
+
+    def __post_init__(self) -> None:
+        if self.scenario == "SCENARIO_K2D5" and not self.supports_web_search:
+            object.__setattr__(self, "supports_web_search", True)
+        if not self.base_model_id:
+            object.__setattr__(self, "base_model_id", self.id)
 
 
 @dataclass(frozen=True)
 class KimiModelCatalog:
     models: List[KimiModelSpec]
     default_model_id: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "models", _with_search_aliases(self.models))
 
     def by_id(self, model_id: str) -> Optional[KimiModelSpec]:
         normalized = model_id.strip().lower()
@@ -119,6 +131,7 @@ def _model_spec(raw_model: Dict[str, Any]) -> KimiModelSpec:
         display_name=display_name,
         scenario=scenario,
         thinking=bool(_raw_value(raw_model, "thinking")),
+        supports_web_search=scenario == "SCENARIO_K2D5",
         kimi_plus_id=str(_raw_value(raw_model, "kimiPlusId", "kimi_plus_id") or ""),
         agent_mode=str(_raw_value(raw_model, "agentMode", "agent_mode") or ""),
         description=str(_raw_value(raw_model, "description") or ""),
@@ -134,6 +147,48 @@ def _dedupe_models(models: Iterable[KimiModelSpec]) -> List[KimiModelSpec]:
         if model.id and model.id not in deduped:
             deduped[model.id] = model
     return list(deduped.values())
+
+
+def _search_alias_id(model_id: str) -> str:
+    return f"{model_id}-search"
+
+
+def _search_alias(model: KimiModelSpec) -> KimiModelSpec:
+    return KimiModelSpec(
+        id=_search_alias_id(model.id),
+        display_name=f"{model.display_name} Search",
+        scenario=model.scenario,
+        thinking=model.thinking,
+        supports_web_search=True,
+        base_model_id=model.id,
+        force_web_search=True,
+        kimi_plus_id=model.kimi_plus_id,
+        agent_mode=model.agent_mode,
+        description=(
+            f"{model.description} with web search"
+            if model.description
+            else "Web search enabled"
+        ),
+        input_placeholder=model.input_placeholder,
+    )
+
+
+def _with_search_aliases(models: List[KimiModelSpec]) -> List[KimiModelSpec]:
+    result = list(models)
+    existing_ids = {model.id for model in result}
+    for model in models:
+        if (
+            not model.supports_web_search
+            or model.force_web_search
+            or model.id.endswith("-search")
+        ):
+            continue
+        alias_id = _search_alias_id(model.id)
+        if alias_id in existing_ids:
+            continue
+        result.append(_search_alias(model))
+        existing_ids.add(alias_id)
+    return result
 
 
 def _default_model_id(

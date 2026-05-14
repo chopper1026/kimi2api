@@ -40,7 +40,21 @@ def test_parse_model_catalog_builds_stable_openai_model_ids():
         "kimi-k2.6-thinking",
         "kimi-k2.6-agent",
         "kimi-k2.6-agent-swarm",
+        "kimi-k2.6-search",
+        "kimi-k2.6-thinking-search",
     ]
     assert catalog.default_model_id == "kimi-k2.6"
     assert catalog.by_id("kimi-k2.6-agent").agent_mode == "TYPE_NORMAL"
-
+    assert [model.supports_web_search for model in catalog.models] == [
+        True,
+        True,
+        False,
+        False,
+        True,
+        True,
+    ]
+    assert catalog.by_id("kimi-k2.6-search").base_model_id == "kimi-k2.6"
+    assert catalog.by_id("kimi-k2.6-search").force_web_search is True
+    assert catalog.by_id("kimi-k2.6-thinking-search").base_model_id == "kimi-k2.6-thinking"
+    assert catalog.by_id("kimi-k2.6-thinking-search").thinking is True
+    assert catalog.by_id("kimi-k2.6-agent-search") is None
